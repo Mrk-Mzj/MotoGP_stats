@@ -1,0 +1,19 @@
+weather services:
+https://www.meteosource.com/documentation#time_machine (by lat,lon)
+https://docs.oikolab.com/references/ (by city name)
+
+
+
+
+pulselive API:
+https://github.com/micheleberardi/racingmike_motogp_import
+
+
+https://api.motogp.pulselive.com/motogp/v1/results/seasons
+
+https://api.motogp.pulselive.com/motogp/v1/results/categories?seasonUuid=db8dc197-c7b2-4c1b-b3a4-7dc723c087ed
+
+https://api.motogp.pulselive.com/motogp/v1/results/events?seasonUuid=db8dc197-c7b2-4c1b-b3a4-6dc534c023ef&isFinished=true
+
+https://api.motogp.pulselive.com/motogp/v1/results/sessions?eventUuid=df77971c-1f58-4cbd-911f-cf2391fd57e3&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942
+

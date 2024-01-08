@@ -1,9 +1,10 @@
 import requests
-import pandas as pd
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
-class ScrappingYear:
+class ScrappingReasultsFrom:
     def __init__(self, year: int):
         self.year = year
         self.url = f"https://en.wikipedia.org/wiki/{year}_MotoGP_World_Championship"
@@ -21,17 +22,23 @@ class ScrappingYear:
 
     # scrapping riders standings
     def riders(self) -> pd.DataFrame:
-        # get list of tables from url:
-        df_tables = pd.read_html(self.url, attrs={"class": "wikitable"}, flavor="bs4")
+        soup = BeautifulSoup(requests.get(self.url).content, "html.parser")
 
-        # look for riders standings table:
+        # remove all <sup> tags, that could be added to the numbers
+        for sup in soup.select("sup"):
+            sup.extract()
+
+        # create list of all tables (dataframes):
+        df_tables = pd.read_html(str(soup), attrs={"class": "wikitable"})
+
+        # extract riders standings table:
         df_riders = pd.DataFrame()
         for _ in df_tables:
             if "Bike" in _.columns:
                 df_riders = _
                 break
 
-        # check if riders standings table was found:
+        # make sure riders standings table was found:
         if df_riders.empty:
             print(f"\nNo riders standings found!\n")
             raise ValueError
@@ -43,9 +50,32 @@ class ScrappingYear:
     #     ...
 
 
+# class Weather:
+#     ...
+
+
+class Cleaning:
+    @classmethod
+    def clean(cls, df: pd.DataFrame) -> pd.DataFrame:
+        cls.df = df
+        # removing last two rows:
+        df.drop(df.tail(2).index, inplace=True)
+        return df
+
+
+class Plotting:
+    def __init__(self, df: pd.DataFrame):
+        self.df = df
+        # df.plot()
+        # plt.show()
+
+
 def main():
-    standings = ScrappingYear(2023)
-    print(standings.riders())
+    results = ScrappingReasultsFrom(2023).riders()
+    Cleaning.clean(results)
+    print()
+    print(results)  # results.to_string() to show all
+    # Plotting(results.riders())
 
 
 if __name__ == "__main__":
