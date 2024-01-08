@@ -45,12 +45,16 @@ class ScrappingReasultsFrom:
 
         return df_riders
 
-    # scrapping constructors standings
+    # scrapping teams standings #TODO
+    # def teams(self):
+    #     ...
+
+    # scrapping constructors standings #TODO
     # def constructors(self):
     #     ...
 
 
-# class Weather:
+# class Weather: #TODO
 #     ...
 
 
@@ -58,8 +62,19 @@ class Cleaning:
     @classmethod
     def clean(cls, df: pd.DataFrame) -> pd.DataFrame:
         cls.df = df
+
+        # removing columns:
+        df.drop(columns=["Bike", "Team", "Pts"], inplace=True)
+
         # removing last two rows:
         df.drop(df.tail(2).index, inplace=True)
+
+        # converting status strings to 0:
+        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], 0, inplace=True)
+
+        # converting NaN (empty cells) to 0:
+        df.fillna(0, inplace=True)
+
         return df
 
 
