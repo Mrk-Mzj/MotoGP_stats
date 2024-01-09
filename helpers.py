@@ -46,8 +46,8 @@ class ScrappingReasultsFrom:
         return df_riders
 
     # scrapping teams standings #TODO
-    # def teams(self):
-    #     ...
+    def teams(self):
+        ...
 
     # scrapping constructors standings #TODO
     # def constructors(self):
@@ -59,10 +59,7 @@ class ScrappingReasultsFrom:
 
 
 class Cleaning:
-    @classmethod
-    def clean(cls, df: pd.DataFrame) -> pd.DataFrame:
-        cls.df = df
-
+    def __new__(cls, df: pd.DataFrame) -> pd.DataFrame:
         # removing columns:
         df.drop(columns=["Bike", "Team", "Pts"], inplace=True)
 
@@ -87,10 +84,12 @@ class Plotting:
 
 def main():
     results = ScrappingReasultsFrom(2023).riders()
-    Cleaning.clean(results)
+    Cleaning(results)
+
     print()
     print(results)  # results.to_string() to show all
-    # Plotting(results.riders())
+
+    # Plotting(results.riders()) #TODO
 
 
 if __name__ == "__main__":
