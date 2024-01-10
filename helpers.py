@@ -2,6 +2,7 @@ from io import StringIO
 import requests
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import pandas as pd
 
@@ -68,11 +69,11 @@ class Cleaning:
         # removing last two rows
         df.drop(df.tail(2).index, inplace=True)
 
-        # converting status strings to 0
-        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], 0, inplace=True)
+        # converting status strings to 22
+        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], "-1", inplace=True)
 
-        # converting NaN (empty cells) to 0:
-        df.fillna(0, inplace=True)
+        # converting NaN (empty cells) to 22:
+        df.fillna("-1", inplace=True)
 
         # setting index to rider name
         df.set_index("Rider", inplace=True)
@@ -95,27 +96,75 @@ class Plotting:
         if limit_races:
             df.drop(columns=df.columns[limit_races:], inplace=True)
 
+        # print clipped dataframe to console
         print(df, "\n")
 
         # setting plot size in pixels / dpi
         plt.figure(figsize=(900 / 72, 400 / 72))
 
-        # plot drivers with Matplotlib:
+        # expand margins for drivers names
+        plt.margins(x=0.12)
+
+        # plot drivers standings with matplotlib
         for rider in df.index:
-            plt.plot(df.columns, df.loc[rider], marker="o", label=rider)
+            # plot race results for each driver
+            plt.plot(
+                df.columns,
+                df.loc[rider],
+                marker=".",
+                ms=17,
+                label=rider,
+                alpha=0.8,
+            )
 
-        # plot drivers - other method:
-        # for index, row in df.iterrows():
-        #     plt.plot(row, marker="o", label=index)
+            # add small tag on each marker
+            for x, y in zip(df.columns, df.loc[rider]):
+                if int(y) == -1:
+                    tag = "X"  # crash / failure / etc.
+                else:
+                    tag = str(y)
 
-        plt.title("Riders' standings")
-        plt.legend()
+                plt.text(
+                    x,
+                    y,
+                    tag,
+                    size=6,
+                    # weight="bold",
+                    color="white",
+                    horizontalalignment="center",
+                    verticalalignment="center",
+                )
+
+            # add small drivers names
+            plt.text(
+                *np.array((-0.2, df.loc[rider].iloc[0])),  # position x,y
+                str(rider).split()[-1],  # last name
+                size=7,
+                stretch="extra-condensed",
+                horizontalalignment="right",
+            )
+
+        # line cutting off the crashed drivers
+        line_length = len(df.columns)
+        plt.plot([0, line_length], [-0.3, -0.3], color="white", alpha=0.7, linewidth=30)
+
+        plt.title("Riders' standings", fontsize=15, pad=10)
+        plt.legend(fontsize=9)
         plt.xlabel("Races")
-        plt.xticks(rotation=45)
+        plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
+        plt.yticks(fontsize=9)
+        plt.grid(alpha=0.2)
 
-        # show plot
-        plt.show()  # TODO: (1)flip plot upside down, (2)convert 0 to 30 / break
+        # set Y axis to integer values
+        ax = plt.gca()
+        ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+
+        # set range, to show values in increments of 1
+        ax.set_yticks(range(0, 20))
+
+        ax.invert_yaxis()
+        plt.show()
 
 
 def main():
@@ -124,7 +173,7 @@ def main():
 
     print()
     # print(results.to_json()) # TODO: saving to cache
-    Plotting(results, limit_drivers=5)
+    Plotting(results, limit_drivers=4)
 
 
 if __name__ == "__main__":
