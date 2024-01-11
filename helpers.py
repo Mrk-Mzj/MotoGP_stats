@@ -1,5 +1,7 @@
 from io import StringIO
+import json
 import requests
+from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -56,9 +58,51 @@ class ScrappingReasultsFrom:
     def constructors(self) -> pd.DataFrame:
         ...
 
+    def weather(self):
+        # API info: https://github.com/micheleberardi/racingmike_motogp_import
 
-# class Weather: #TODO
-#     ...
+        # find season id for a given year
+        url = "https://api.motogp.pulselive.com/motogp/v1/results/seasons"
+        all_seasons = json.loads(urlopen(url).read())
+
+        for item in all_seasons:
+            if item["year"] == self.year:
+                season_id = item["id"]
+
+        # find MotoGP category id for a given season
+        url = f"https://api.motogp.pulselive.com/motogp/v1/results/categories?seasonUuid={season_id}"
+        all_categories = json.loads(urlopen(url).read())
+
+        for item in all_categories:
+            if item["name"] == "MotoGP™":
+                category_id = item["id"]
+
+        # find event id for a given season
+        url = f"https://api.motogp.pulselive.com/motogp/v1/results/events?seasonUuid={season_id}&isFinished=true"
+        all_events = json.loads(urlopen(url).read())
+
+        for item in all_events:
+            if item["short_name"] == "POR":
+                event_id = item["id"]
+                # TODO: loop through all short names,
+                # load all event_ids to a list of dicts / JSON
+
+        # find race session weather conditions
+        url = f"https://api.motogp.pulselive.com/motogp/v1/results/sessions?eventUuid={event_id}&categoryUuid={category_id}"
+        all_sessions = json.loads(urlopen(url).read())
+
+        for item in all_sessions:
+            if item["type"] == "RAC":  # set this line!
+                track_wet = item["condition"]["track"]
+                air_temp = item["condition"]["air"]
+                humidity = item["condition"]["humidity"]
+                ground_temp = item["condition"]["ground"]
+                clouds = item["condition"]["weather"]
+                print(track_wet, air_temp, humidity, ground_temp, clouds)
+
+                # TODO: load weather conditions
+                # of all event_ids to a list of dicts / JSON
+                # You can copy whole 'condition' key at once.
 
 
 class Cleaning:
@@ -161,12 +205,14 @@ class Plotting:
 
 
 def main():
-    results = ScrappingReasultsFrom(2023).riders()
-    Cleaning(results)
+    # results = ScrappingReasultsFrom(2023).riders()
+    # Cleaning(results)
 
-    print()
-    # print(results.to_json()) # TODO: saving to cache
-    Plotting(results, limit_drivers=4)
+    # print()
+    # # print(results.to_json()) # TODO: saving to cache
+    # Plotting(results, limit_drivers=4)
+
+    results = ScrappingReasultsFrom(2023).weather()
 
 
 if __name__ == "__main__":
