@@ -69,11 +69,9 @@ class Cleaning:
         # removing last two rows
         df.drop(df.tail(2).index, inplace=True)
 
-        # converting status strings to 22
-        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], "-1", inplace=True)
-
-        # converting NaN (empty cells) to 22:
-        df.fillna("-1", inplace=True)
+        # marking unfinished races as NaN.
+        # side effect: this converts df to float.
+        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], np.nan, inplace=True)
 
         # setting index to rider name
         df.set_index("Rider", inplace=True)
@@ -111,42 +109,37 @@ class Plotting:
             plt.plot(
                 df.columns,
                 df.loc[rider],
-                marker=".",
-                ms=17,
+                marker="o",
+                ms=11,
                 label=rider,
-                alpha=0.8,
             )
 
-            # add small tag on each marker
+            # add small numbers on each marker
             for x, y in zip(df.columns, df.loc[rider]):
-                if int(y) == -1:
-                    tag = "X"  # crash / failure / etc.
-                else:
-                    tag = str(y)
+                # skip number when NaN (unfinished race)
+                if np.isnan(y):
+                    continue
 
                 plt.text(
                     x,
                     y,
-                    tag,
-                    size=6,
-                    # weight="bold",
+                    str(round(y)),
+                    size=7,
                     color="white",
                     horizontalalignment="center",
                     verticalalignment="center",
                 )
 
             # add small drivers names
-            plt.text(
-                *np.array((-0.2, df.loc[rider].iloc[0])),  # position x,y
-                str(rider).split()[-1],  # last name
-                size=7,
-                stretch="extra-condensed",
-                horizontalalignment="right",
-            )
-
-        # line cutting off the crashed drivers
-        line_length = len(df.columns)
-        plt.plot([0, line_length], [-0.3, -0.3], color="white", alpha=0.7, linewidth=30)
+            # only when driver finished his first race (if not NaN)
+            if not np.isnan(df.loc[rider].iloc[0]):
+                plt.text(
+                    *np.array((-0.3, df.loc[rider].iloc[0])),  # position x,y
+                    str(rider).split()[-1],  # last name
+                    size=7,
+                    stretch="extra-condensed",
+                    horizontalalignment="right",
+                )
 
         plt.title("Riders' standings", fontsize=15, pad=10)
         plt.legend(fontsize=9)
@@ -154,7 +147,7 @@ class Plotting:
         plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
         plt.yticks(fontsize=9)
-        plt.grid(alpha=0.2)
+        plt.grid(axis="x", alpha=0.3)
 
         # set Y axis to integer values
         ax = plt.gca()
