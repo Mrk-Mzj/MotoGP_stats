@@ -14,19 +14,19 @@ class GatheringReasultsFrom:
         self.year = year
         self.url = f"https://en.wikipedia.org/wiki/{year}_MotoGP_World_Championship"
 
+
+    # scrapping riders standings
+    def riders(self) -> pd.DataFrame:
         # check URL:
         try:
             response = requests.head(self.url)
             if response.status_code != 200:
-                print(f"\nError connecting to: \n{self.url}\n")
-                raise ConnectionError
+                raise ConnectionError(f"\nError connecting to: {self.url}\n")
 
         # check internet connection:
         except requests.exceptions.ConnectionError:
             print("Internet Connection Error!")
 
-    # scrapping riders standings
-    def riders(self) -> pd.DataFrame:
         soup = BeautifulSoup(requests.get(self.url).content, "html.parser")
 
         # remove all <sup> tags, that could be added to the numbers
@@ -50,14 +50,6 @@ class GatheringReasultsFrom:
 
         return df_riders
 
-    # scrapping teams standings #TODO
-    def teams(self) -> pd.DataFrame:
-        ...
-
-    # scrapping constructors standings #TODO
-    def constructors(self) -> pd.DataFrame:
-        ...
-
     # gathering weather through API
     def weather(self) -> dict:
         # API info: https://github.com/micheleberardi/racingmike_motogp_import
@@ -68,7 +60,8 @@ class GatheringReasultsFrom:
         # 1. find Season (year) id
         url = "https://api.motogp.pulselive.com/motogp/v1/results/seasons"
 
-        all_seasons = json.loads(urlopen(url).read())
+        with urlopen(url) as response:
+            all_seasons = json.loads(response.read())
 
         for item in all_seasons:
             if item["year"] == self.year:
@@ -77,7 +70,8 @@ class GatheringReasultsFrom:
         # 2. find right Category (MotoGP) id for a given Season (year)
         url = f"https://api.motogp.pulselive.com/motogp/v1/results/categories?seasonUuid={season_id}"
 
-        all_categories = json.loads(urlopen(url).read())
+        with urlopen(url) as response:
+            all_categories = json.loads(response.read())
 
         for item in all_categories:
             if item["name"] == "MotoGP™":
@@ -86,7 +80,8 @@ class GatheringReasultsFrom:
         # 3. find Event (race week) id for a given Season (year)
         url = f"https://api.motogp.pulselive.com/motogp/v1/results/events?seasonUuid={season_id}&isFinished=true"
 
-        all_events = json.loads(urlopen(url).read())
+        with urlopen(url) as response:
+            all_events = json.loads(response.read())
 
         for event in all_events:
             # if race week (not alphanum test week)
@@ -96,13 +91,13 @@ class GatheringReasultsFrom:
 
                 url = f"https://api.motogp.pulselive.com/motogp/v1/results/sessions?eventUuid={event_id}&categoryUuid={category_id}"
 
-                all_sessions = json.loads(urlopen(url).read())
+                with urlopen(url) as response:
+                    all_sessions = json.loads(response.read())
 
                 # 4. find weather
                 for session in all_sessions:
                     if session["type"] == "RAC":  # looking for a race session
-                        races_weather.update
-                        (
+                        races_weather.update(
                             {
                                 short_name: {
                                     "track_wet": session["condition"]["track"],
@@ -217,15 +212,14 @@ class Plotting:
 
 
 def main():
-    # results = GatheringReasultsFrom(2023).riders()
-    # Cleaning(results)
+    results = GatheringReasultsFrom(2023).riders()
+    Cleaning(results)
 
-    # print()
-    # # print(results.to_json()) # TODO: saving to cache
-    # Plotting(results, limit_drivers=4)
+    print()
+    Plotting(results, limit_drivers=4)
 
-    weather = GatheringReasultsFrom(2023).weather()
-    print(json.dumps(weather))
+    # weather = GatheringReasultsFrom(2023).weather()
+    # print(json.dumps(weather))
 
 
 if __name__ == "__main__":
