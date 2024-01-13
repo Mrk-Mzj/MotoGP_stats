@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 
-class ScrappingReasultsFrom:
+class GatheringReasultsFrom:
     def __init__(self, year: int):
         self.year = year
         self.url = f"https://en.wikipedia.org/wiki/{year}_MotoGP_World_Championship"
@@ -58,51 +58,63 @@ class ScrappingReasultsFrom:
     def constructors(self) -> pd.DataFrame:
         ...
 
-    def weather(self):
+    # gathering weather through API
+    def weather(self) -> dict:
         # API info: https://github.com/micheleberardi/racingmike_motogp_import
 
-        # find season id for a given year
+        # list of dictionaries - to store race names and weather
+        races_weather = {}
+
+        # 1. find Season (year) id
         url = "https://api.motogp.pulselive.com/motogp/v1/results/seasons"
+
         all_seasons = json.loads(urlopen(url).read())
 
         for item in all_seasons:
             if item["year"] == self.year:
                 season_id = item["id"]
 
-        # find MotoGP category id for a given season
+        # 2. find right Category (MotoGP) id for a given Season (year)
         url = f"https://api.motogp.pulselive.com/motogp/v1/results/categories?seasonUuid={season_id}"
+
         all_categories = json.loads(urlopen(url).read())
 
         for item in all_categories:
             if item["name"] == "MotoGP™":
                 category_id = item["id"]
 
-        # find event id for a given season
+        # 3. find Event (race week) id for a given Season (year)
         url = f"https://api.motogp.pulselive.com/motogp/v1/results/events?seasonUuid={season_id}&isFinished=true"
+
         all_events = json.loads(urlopen(url).read())
 
-        for item in all_events:
-            if item["short_name"] == "POR":
-                event_id = item["id"]
-                # TODO: loop through all short names,
-                # load all event_ids to a list of dicts / JSON
+        for event in all_events:
+            # if race week (not alphanum test week)
+            if event["short_name"].isalpha():
+                event_id = event["id"]
+                short_name = event["short_name"]
 
-        # find race session weather conditions
-        url = f"https://api.motogp.pulselive.com/motogp/v1/results/sessions?eventUuid={event_id}&categoryUuid={category_id}"
-        all_sessions = json.loads(urlopen(url).read())
+                url = f"https://api.motogp.pulselive.com/motogp/v1/results/sessions?eventUuid={event_id}&categoryUuid={category_id}"
 
-        for item in all_sessions:
-            if item["type"] == "RAC":  # set this line!
-                track_wet = item["condition"]["track"]
-                air_temp = item["condition"]["air"]
-                humidity = item["condition"]["humidity"]
-                ground_temp = item["condition"]["ground"]
-                clouds = item["condition"]["weather"]
-                print(track_wet, air_temp, humidity, ground_temp, clouds)
+                all_sessions = json.loads(urlopen(url).read())
 
-                # TODO: load weather conditions
-                # of all event_ids to a list of dicts / JSON
-                # You can copy whole 'condition' key at once.
+                # 4. find weather
+                for session in all_sessions:
+                    if session["type"] == "RAC":  # looking for a race session
+                        races_weather.update
+                        (
+                            {
+                                short_name: {
+                                    "track_wet": session["condition"]["track"],
+                                    "air_temp": session["condition"]["air"],
+                                    "humidity": session["condition"]["humidity"],
+                                    "ground_temp": session["condition"]["ground"],
+                                    "clouds": session["condition"]["weather"],
+                                }
+                            }
+                        )
+
+        return races_weather
 
 
 class Cleaning:
@@ -205,14 +217,15 @@ class Plotting:
 
 
 def main():
-    # results = ScrappingReasultsFrom(2023).riders()
+    # results = GatheringReasultsFrom(2023).riders()
     # Cleaning(results)
 
     # print()
     # # print(results.to_json()) # TODO: saving to cache
     # Plotting(results, limit_drivers=4)
 
-    results = ScrappingReasultsFrom(2023).weather()
+    weather = GatheringReasultsFrom(2023).weather()
+    print(json.dumps(weather))
 
 
 if __name__ == "__main__":
