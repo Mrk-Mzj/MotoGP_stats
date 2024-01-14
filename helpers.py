@@ -1,7 +1,9 @@
 from io import StringIO
 import json
 import requests
+from requests.exceptions import ConnectionError, HTTPError
 from urllib.request import urlopen
+from urllib.error import URLError
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -14,20 +16,25 @@ class GatheringReasultsFrom:
         self.year = year
         self.url = f"https://en.wikipedia.org/wiki/{year}_MotoGP_World_Championship"
 
-
     # scrapping riders standings
     def riders(self) -> pd.DataFrame:
-        # check URL:
+        #
+        # checking URL and connection:
         try:
-            response = requests.head(self.url)
+            response = requests.get(self.url)
             if response.status_code != 200:
-                raise ConnectionError(f"\nError connecting to: {self.url}\n")
+                raise HTTPError(
+                    f"\n Error connecting to {self.url} \n code: {response.status_code}"
+                )
 
-        # check internet connection:
-        except requests.exceptions.ConnectionError:
-            print("Internet Connection Error!")
+        except HTTPError as e:
+            raise HTTPError(f"\n HTTP error occurred: {e}")
 
-        soup = BeautifulSoup(requests.get(self.url).content, "html.parser")
+        except ConnectionError:
+            raise ConnectionError("\n Internet connection Error!")
+
+        # creating Soup object
+        soup = BeautifulSoup(response.content, "html.parser")
 
         # remove all <sup> tags, that could be added to the numbers
         for sup in soup.select("sup"):
@@ -54,14 +61,31 @@ class GatheringReasultsFrom:
     def weather(self) -> dict:
         # API info: https://github.com/micheleberardi/racingmike_motogp_import
 
+        # connecting to API endpoints
+        def fetch_api_data(url):
+            try:
+                with urlopen(url) as response:
+                    data = json.loads(response.read())
+
+                    return data
+
+            except HTTPError as e:
+                raise HTTPError(
+                    f"\n Error connecting to {self.url} \n code: {response.status_code}"
+                )
+
+            except ConnectionError:
+                raise ConnectionError("\n Internet connection Error!")
+
+            except json.JSONDecodeError:
+                raise ValueError(f"Invalid JSON response from url {url}")
+
         # list of dictionaries - to store race names and weather
         races_weather = {}
 
         # 1. find Season (year) id
         url = "https://api.motogp.pulselive.com/motogp/v1/results/seasons"
-
-        with urlopen(url) as response:
-            all_seasons = json.loads(response.read())
+        all_seasons = fetch_api_data(url)
 
         for item in all_seasons:
             if item["year"] == self.year:
@@ -69,9 +93,7 @@ class GatheringReasultsFrom:
 
         # 2. find right Category (MotoGP) id for a given Season (year)
         url = f"https://api.motogp.pulselive.com/motogp/v1/results/categories?seasonUuid={season_id}"
-
-        with urlopen(url) as response:
-            all_categories = json.loads(response.read())
+        all_categories = fetch_api_data(url)
 
         for item in all_categories:
             if item["name"] == "MotoGP™":
@@ -79,9 +101,7 @@ class GatheringReasultsFrom:
 
         # 3. find Event (race week) id for a given Season (year)
         url = f"https://api.motogp.pulselive.com/motogp/v1/results/events?seasonUuid={season_id}&isFinished=true"
-
-        with urlopen(url) as response:
-            all_events = json.loads(response.read())
+        all_events = fetch_api_data(url)
 
         for event in all_events:
             # if race week (not alphanum test week)
@@ -90,9 +110,7 @@ class GatheringReasultsFrom:
                 short_name = event["short_name"]
 
                 url = f"https://api.motogp.pulselive.com/motogp/v1/results/sessions?eventUuid={event_id}&categoryUuid={category_id}"
-
-                with urlopen(url) as response:
-                    all_sessions = json.loads(response.read())
+                all_sessions = fetch_api_data(url)
 
                 # 4. find weather
                 for session in all_sessions:
@@ -214,7 +232,6 @@ class Plotting:
 def main():
     results = GatheringReasultsFrom(2023).riders()
     Cleaning(results)
-
     print()
     Plotting(results, limit_drivers=4)
 
