@@ -33,35 +33,39 @@ class Cleaning:
 
 
 class GatheringReasultsFrom:
-    def __init__(self, year: int):
-        self.year = year
-        self.url = f"https://en.wikipedia.org/wiki/{year}_MotoGP_World_Championship"
+    def __init__(self, YEAR: int):
+        self.YEAR = YEAR
+        self.CACHE_PATH = "cache/"
+        self.WIKI_URL = (
+            f"https://en.wikipedia.org/wiki/{self.YEAR}_MotoGP_World_Championship"
+        )
 
     # gathering riders standings
     def riders(self) -> pd.DataFrame:
         #
         # gathering from cache
-        ## TODO: loading and saving dataframe (not json file)
-        # try:
-        #     with open(f"cache/{self.year}-MotoGP-drivers.json", 'r') as file:
-        #         df_riders = json.load(file)
-        #         return df_riders
-        # except FileNotFoundError or json.JSONDecodeError:
-        #     pass
-        
+        try:
+            df_riders = pd.read_pickle(
+                f"{self.CACHE_PATH}{self.YEAR}-MotoGP-riders.pkl"
+            )
+            print("\n Gathering riders data from cache")
+            return df_riders
+        except FileNotFoundError:
+            pass
+
         # gathering through scrapping
-        print("\n Gathering riders data through scrapping.")
+        print("\n Gathering riders data through scrapping...")
         # checking URL and connection:
         try:
-            response = requests.get(self.url)
+            response = requests.get(self.WIKI_URL)
             if response.status_code != 200:
                 raise HTTPError(
-                    f"\n Error connecting to {self.url} \n code: {response.status_code}"
+                    f"\n Error connecting to {self.WIKI_URL} \n code: {response.status_code}"
                 )
         except HTTPError as e:
             raise HTTPError(f"\n HTTP error occurred: {e}")
         except URLError as e:
-            raise URLError(f"\n URL error for {self.url}: {e}")
+            raise URLError(f"\n URL error for {self.WIKI_URL}: {e}")
         except ConnectionError:
             raise ConnectionError("\n Internet connection Error!")
 
@@ -87,6 +91,8 @@ class GatheringReasultsFrom:
             print(f"\n No riders standings found!\n")
             raise ValueError
 
+        # saving file to cache
+        df_riders.to_pickle(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-riders.pkl")
         return df_riders
 
     # gathering weather data
@@ -94,8 +100,9 @@ class GatheringReasultsFrom:
         #
         # gathering from cache
         try:
-            with open(f"cache/{self.year}-MotoGP-weather.json", 'r') as file:
+            with open(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-weather.json", "r") as file:
                 races_weather = json.load(file)
+                print("\n Gathering weather data from cache")
                 return races_weather
         except FileNotFoundError or json.JSONDecodeError:
             pass
@@ -111,18 +118,18 @@ class GatheringReasultsFrom:
 
             except HTTPError as e:
                 raise HTTPError(
-                    f"\n Error connecting to {self.url} \n code: {response.status_code}"
+                    f"\n Error connecting to {url} \n code: {response.status_code}"
                 )
             except URLError as e:
-                raise URLError(f"\n URL error for {self.url}: {e}")
+                raise URLError(f"\n URL error for {url}: {e}")
 
             except ConnectionError:
                 raise ConnectionError("\n Internet connection Error!")
 
             except json.JSONDecodeError:
-                raise ValueError(f"\n Invalid JSON response from url {self.url}")
+                raise ValueError(f"\n Invalid JSON response from url {url}")
 
-        print("\n Gathering historical weather data through API. It may take a while...")
+        print("\n Gathering weather data through API. It may take a while...")
 
         # list of dictionaries - to store race names and weather
         races_weather = {}
@@ -132,7 +139,7 @@ class GatheringReasultsFrom:
         all_seasons = fetch_api_data(url)
 
         for item in all_seasons:
-            if item["year"] == self.year:
+            if item["year"] == self.YEAR:
                 season_id = item["id"]
 
         # 2. find right Category (MotoGP) id for a given Season (year)
@@ -171,20 +178,20 @@ class GatheringReasultsFrom:
                             }
                         )
 
-        # saving file to a cache
-        with open(f"cache/{self.year}-MotoGP-weather.json", "w") as file:
+        # saving file to cache
+        with open(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-weather.json", "w") as file:
             json.dump(races_weather, file)
 
         return races_weather
 
 
 class Plotting:
-    def __new__(cls, df: pd.DataFrame, limit_drivers=0, limit_races=0) -> None:
+    def __new__(cls, df: pd.DataFrame, limit_riders=0, limit_races=0) -> None:
         cls.df = df
 
-        # limit to n drivers
-        if limit_drivers:
-            df.drop(index=df.index[limit_drivers:], inplace=True)
+        # limit to n riders
+        if limit_riders:
+            df.drop(index=df.index[limit_riders:], inplace=True)
 
         # limit to n races
         if limit_races:
@@ -196,10 +203,10 @@ class Plotting:
         # setting plot size in pixels / dpi
         plt.figure(figsize=(900 / 72, 400 / 72))
 
-        # expand margins for drivers names
+        # expand margins for riders names
         plt.margins(x=0.12)
 
-        # plot drivers standings with matplotlib
+        # plot riders standings with matplotlib
         for rider in df.index:
             # plot race results for each driver
             plt.plot(
@@ -226,7 +233,7 @@ class Plotting:
                     verticalalignment="center",
                 )
 
-            # add small drivers names
+            # add small riders names
             # only when driver finished his first race (if not NaN)
             if not np.isnan(df.loc[rider].iloc[0]):
                 plt.text(
@@ -257,13 +264,17 @@ class Plotting:
 
 
 def main():
-    results = GatheringReasultsFrom(2023).riders()
+    YEAR = 2023
+
+    # weather data
+    weather = GatheringReasultsFrom(YEAR).weather()
+    print("\n", json.dumps(weather))
+
+    # riders standings
+    results = GatheringReasultsFrom(YEAR).riders()
     Cleaning(results)
     print()
-    Plotting(results, limit_drivers=4)
-
-    # weather = GatheringReasultsFrom(2023).weather()
-    # print(json.dumps(weather))
+    Plotting(results, limit_riders=4)
 
 
 if __name__ == "__main__":
