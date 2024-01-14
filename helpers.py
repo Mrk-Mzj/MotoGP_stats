@@ -11,14 +11,46 @@ import numpy as np
 import pandas as pd
 
 
+class Cleaning:
+    def __new__(cls, df: pd.DataFrame) -> pd.DataFrame:
+        # removing columns
+        df.drop(columns=["Pos.", "Bike", "Team", "Pts"], inplace=True)
+
+        # removing last two rows
+        df.drop(df.tail(2).index, inplace=True)
+
+        # marking unfinished races as NaN.
+        # side effect: this converts df to float.
+        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], np.nan, inplace=True)
+
+        # setting index to rider name
+        df.set_index("Rider", inplace=True)
+
+        # converting columns from object to numeric:
+        df[df.columns] = df[df.columns].apply(pd.to_numeric)
+
+        return df
+
+
 class GatheringReasultsFrom:
     def __init__(self, year: int):
         self.year = year
         self.url = f"https://en.wikipedia.org/wiki/{year}_MotoGP_World_Championship"
 
-    # scrapping riders standings
+    # gathering riders standings
     def riders(self) -> pd.DataFrame:
         #
+        # gathering from cache
+        ## TODO: loading and saving dataframe (not json file)
+        # try:
+        #     with open(f"cache/{self.year}-MotoGP-drivers.json", 'r') as file:
+        #         df_riders = json.load(file)
+        #         return df_riders
+        # except FileNotFoundError or json.JSONDecodeError:
+        #     pass
+        
+        # gathering through scrapping
+        print("\n Gathering riders data through scrapping.")
         # checking URL and connection:
         try:
             response = requests.get(self.url)
@@ -26,10 +58,10 @@ class GatheringReasultsFrom:
                 raise HTTPError(
                     f"\n Error connecting to {self.url} \n code: {response.status_code}"
                 )
-
         except HTTPError as e:
             raise HTTPError(f"\n HTTP error occurred: {e}")
-
+        except URLError as e:
+            raise URLError(f"\n URL error for {self.url}: {e}")
         except ConnectionError:
             raise ConnectionError("\n Internet connection Error!")
 
@@ -52,16 +84,24 @@ class GatheringReasultsFrom:
 
         # make sure riders standings table was found:
         if df_riders.empty:
-            print(f"\nNo riders standings found!\n")
+            print(f"\n No riders standings found!\n")
             raise ValueError
 
         return df_riders
 
-    # gathering weather through API
+    # gathering weather data
     def weather(self) -> dict:
-        # API info: https://github.com/micheleberardi/racingmike_motogp_import
+        #
+        # gathering from cache
+        try:
+            with open(f"cache/{self.year}-MotoGP-weather.json", 'r') as file:
+                races_weather = json.load(file)
+                return races_weather
+        except FileNotFoundError or json.JSONDecodeError:
+            pass
 
-        # connecting to API endpoints
+        # gathering from API
+        # API info: https://github.com/micheleberardi/racingmike_motogp_import
         def fetch_api_data(url):
             try:
                 with urlopen(url) as response:
@@ -73,12 +113,16 @@ class GatheringReasultsFrom:
                 raise HTTPError(
                     f"\n Error connecting to {self.url} \n code: {response.status_code}"
                 )
+            except URLError as e:
+                raise URLError(f"\n URL error for {self.url}: {e}")
 
             except ConnectionError:
                 raise ConnectionError("\n Internet connection Error!")
 
             except json.JSONDecodeError:
-                raise ValueError(f"Invalid JSON response from url {url}")
+                raise ValueError(f"\n Invalid JSON response from url {self.url}")
+
+        print("\n Gathering historical weather data through API. It may take a while...")
 
         # list of dictionaries - to store race names and weather
         races_weather = {}
@@ -127,28 +171,11 @@ class GatheringReasultsFrom:
                             }
                         )
 
+        # saving file to a cache
+        with open(f"cache/{self.year}-MotoGP-weather.json", "w") as file:
+            json.dump(races_weather, file)
+
         return races_weather
-
-
-class Cleaning:
-    def __new__(cls, df: pd.DataFrame) -> pd.DataFrame:
-        # removing columns
-        df.drop(columns=["Pos.", "Bike", "Team", "Pts"], inplace=True)
-
-        # removing last two rows
-        df.drop(df.tail(2).index, inplace=True)
-
-        # marking unfinished races as NaN.
-        # side effect: this converts df to float.
-        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], np.nan, inplace=True)
-
-        # setting index to rider name
-        df.set_index("Rider", inplace=True)
-
-        # converting columns from object to numeric:
-        df[df.columns] = df[df.columns].apply(pd.to_numeric)
-
-        return df
 
 
 class Plotting:
