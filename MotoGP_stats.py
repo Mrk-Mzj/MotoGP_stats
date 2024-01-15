@@ -1,15 +1,13 @@
 from io import StringIO
 import json
-import requests
 import sys
-from requests.exceptions import ConnectionError, HTTPError
-from urllib.request import urlopen
-from urllib.error import URLError
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
 import pandas as pd
+import requests
+from requests.exceptions import ConnectionError, HTTPError, RequestException
 
 
 class Cleaning:
@@ -81,19 +79,18 @@ class GatheringReasultsFrom:
 
         # gathering through scrapping
         print("\n Gathering riders data through scrapping...")
+
         # checking URL and connection:
         try:
             response = requests.get(self.WIKI_URL)
-            if response.status_code != 200:
-                raise HTTPError(
-                    f"\n Error connecting to {self.WIKI_URL} \n code: {response.status_code}"
-                )
-        except HTTPError as e:
-            raise HTTPError(f"\n HTTP error occurred: {e}")
-        except URLError as e:
-            raise URLError(f"\n URL error for {self.WIKI_URL}: {e}")
+            response.raise_for_status()  # will rise HTTPError if != 200
+
         except ConnectionError:
             raise ConnectionError("\n Internet connection Error!")
+        except HTTPError as e:
+            raise HTTPError(f"\n HTTP error occurred: {e}")
+        except RequestException as e:
+            raise RequestException(f"\n Error during request to {self.WIKI_URL}: {e}")
 
         # creating Soup object
         soup = BeautifulSoup(response.content, "html.parser")
@@ -124,13 +121,14 @@ class GatheringReasultsFrom:
         df_riders.to_pickle(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-riders.pkl")
         return df_riders
 
+    #
     # gathering weather data
     def weather(self) -> dict:
         if self.YEAR < 2005:
             print(
                 "\n No weather data available before 2005.\n"
             )  # TODO: check the weather plotting if we skip all steps below
-        #
+
         # gathering from cache
         try:
             with open(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-weather.json", "r") as file:
@@ -144,23 +142,21 @@ class GatheringReasultsFrom:
         # API info: https://github.com/micheleberardi/racingmike_motogp_import
         def fetch_api_data(url):
             try:
-                with urlopen(url) as response:
-                    data = json.loads(response.read())
+                response = requests.get(url)
+                response.raise_for_status()  # will rise HTTPError if != 200
+                data = response.json()
+                return data
 
-                    return data
-
+            except ConnectionError:
+                raise ConnectionError("\n Internet connection Error!")
             except HTTPError as e:
                 raise HTTPError(
                     f"\n Error connecting to {url} \n code: {response.status_code}"
                 )
-            except URLError as e:
-                raise URLError(f"\n URL error for {url}: {e}")
-
-            except ConnectionError:
-                raise ConnectionError("\n Internet connection Error!")
-
             except json.JSONDecodeError:
                 raise ValueError(f"\n Invalid JSON response from url {url}")
+            except RequestException as e:
+                raise RequestException(f"\n Error during request to {url}: {e}")
 
         print("\n Gathering weather data through API. It may take a while...")
 
@@ -315,7 +311,7 @@ class Plotting:
 
 
 def main():
-    YEAR = 2002  # MotoGP era: 2002-current
+    YEAR = 2022  # MotoGP era: 2002-current
 
     # weather data
     weather = GatheringReasultsFrom(YEAR).weather()
