@@ -1,6 +1,7 @@
 from io import StringIO
 import json
 import requests
+import sys
 from requests.exceptions import ConnectionError, HTTPError
 from urllib.request import urlopen
 from urllib.error import URLError
@@ -13,15 +14,36 @@ import pandas as pd
 
 class Cleaning:
     def __new__(cls, df: pd.DataFrame) -> pd.DataFrame:
+        #
         # removing columns
-        df.drop(columns=["Pos.", "Bike", "Team", "Pts"], inplace=True)
+        columns_to_remove = ["Bike", "CRT", "Open", "Pos.", "Pos", "Pts", "Team"]
+        for column in columns_to_remove:
+            if column in df.columns:
+                df.drop(columns=column, inplace=True)
 
         # removing last two rows
         df.drop(df.tail(2).index, inplace=True)
 
         # marking unfinished races as NaN.
         # side effect: this converts df to float.
-        df.replace(["Ret", "DNS", "NC", "WD", "DNQ"], np.nan, inplace=True)
+        df.replace(
+            [
+                "C",
+                "DNA",
+                "DNP",
+                "DNPQ",
+                "DNQ",
+                "DNS",
+                "DSQ",
+                "EX",
+                "NC",
+                "Ret",
+                "Ret†",
+                "WD",
+            ],
+            np.nan,
+            inplace=True,
+        )
 
         # setting index to rider name
         df.set_index("Rider", inplace=True)
@@ -36,9 +58,13 @@ class GatheringReasultsFrom:
     def __init__(self, YEAR: int):
         self.YEAR = YEAR
         self.CACHE_PATH = "cache/"
-        self.WIKI_URL = (
-            f"https://en.wikipedia.org/wiki/{self.YEAR}_MotoGP_World_Championship"
-        )
+
+        if self.YEAR < 2012:
+            self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.YEAR}_Grand_Prix_motorcycle_racing_season"
+        else:
+            self.WIKI_URL = (
+                f"https://en.wikipedia.org/wiki/{self.YEAR}_MotoGP_World_Championship"
+            )
 
     # gathering riders standings
     def riders(self) -> pd.DataFrame:
@@ -77,7 +103,10 @@ class GatheringReasultsFrom:
             sup.extract()
 
         # create list of all tables (dataframes):
-        df_tables = pd.read_html(StringIO(str(soup)), attrs={"class": "wikitable"})
+        try:
+            df_tables = pd.read_html(StringIO(str(soup)), attrs={"class": "wikitable"})
+        except ValueError:  # 2003 wiki table is corrupted
+            sys.exit(f"\n Error reading table!")
 
         # extract riders standings table:
         df_riders = pd.DataFrame()
@@ -97,6 +126,10 @@ class GatheringReasultsFrom:
 
     # gathering weather data
     def weather(self) -> dict:
+        if self.YEAR < 2005:
+            print(
+                "\n No weather data available before 2005.\n"
+            )  # TODO: check the weather plotting if we skip all steps below
         #
         # gathering from cache
         try:
@@ -201,12 +234,13 @@ class Plotting:
         print(df, "\n")
 
         # setting plot size in pixels / dpi
-        plt.figure(figsize=(900 / 72, 400 / 72))
+        plt.figure(figsize=(1000 / 72, 600 / 72), layout="tight")
 
-        # expand margins for riders names
-        plt.margins(x=0.12)
+        # first plot:
+        # riders standings on top
+        plt.subplot(2, 1, 1)
 
-        # plot riders standings with matplotlib
+        # plot riders standings
         for rider in df.index:
             # plot race results for each driver
             plt.plot(
@@ -243,10 +277,10 @@ class Plotting:
                     stretch="extra-condensed",
                     horizontalalignment="right",
                 )
-
+        # expand margins for riders names
+        plt.margins(x=0.1)
         plt.title("Riders' standings", fontsize=15, pad=10)
         plt.legend(fontsize=9)
-        plt.xlabel("Races")
         plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
         plt.yticks(fontsize=9)
@@ -258,13 +292,30 @@ class Plotting:
 
         # set range, to show values in increments of 1
         ax.set_yticks(range(0, 20))
-
         ax.invert_yaxis()
+
+        # second plot:
+        # weather detail on bottom
+
+        x = np.array([1, 2, 3, 4])
+        y = np.array([10, 30, 15, 40])
+
+        plt.subplot(2, 1, 2)
+        plt.plot(x, y)
+
+        plt.margins(x=0.1)
+        plt.title("Weather", fontsize=15, pad=10)
+        plt.legend(fontsize=9)
+        plt.xticks(rotation=30, fontsize=9)
+        plt.ylabel("Temperature")
+        plt.yticks(fontsize=9)
+        plt.grid(axis="x", alpha=0.3)
+
         plt.show()
 
 
 def main():
-    YEAR = 2023
+    YEAR = 2002  # MotoGP era: 2002-current
 
     # weather data
     weather = GatheringReasultsFrom(YEAR).weather()
