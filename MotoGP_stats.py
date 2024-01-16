@@ -215,8 +215,12 @@ class GatheringReasultsFrom:
 
 
 class Plotting:
-    def __new__(cls, df: pd.DataFrame, limit_riders=0, limit_races=0) -> None:
+    def __new__(
+        cls, df: pd.DataFrame, weather: dict, YEAR: int, limit_riders=1, limit_races=0
+    ) -> None:
         cls.df = df
+        cls.weather = weather
+        cls.YEAR = YEAR
 
         # limit to n riders
         if limit_riders:
@@ -230,10 +234,10 @@ class Plotting:
         print(df, "\n")
 
         # setting plot size in pixels / dpi
-        plt.figure(figsize=(1000 / 72, 600 / 72), layout="tight")
+        plt.figure(figsize=(1100 / 72, 600 / 72), layout="tight")
 
-        # first plot:
-        # riders standings on top
+        # 1. first plot:
+        # riders standings on the top
         plt.subplot(2, 1, 1)
 
         # plot riders standings
@@ -275,7 +279,7 @@ class Plotting:
                 )
         # expand margins for riders names
         plt.margins(x=0.1)
-        plt.title("Riders' standings", fontsize=15, pad=10)
+        plt.title(f"Riders' standings {cls.YEAR}", fontsize=15, pad=10)
         plt.legend(fontsize=9)
         plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
@@ -290,20 +294,77 @@ class Plotting:
         ax.set_yticks(range(0, 20))
         ax.invert_yaxis()
 
-        # second plot:
-        # weather detail on bottom
-
-        x = np.array([1, 2, 3, 4])
-        y = np.array([10, 30, 15, 40])
-
+        # 2. second plot:
+        # weather detail on the bottom
         plt.subplot(2, 1, 2)
-        plt.plot(x, y)
+
+        x = []
+        y_air_temp = []
+        y_ground_temp = []
+
+        for w in weather:
+            # preparing values for x axis
+            air_temp = weather[w]["air_temp"]
+            clouds = weather[w]["clouds"]
+            ground_temp = weather[w]["ground_temp"]
+            humidity = weather[w]["humidity"]
+            track_wet = weather[w]["track_wet"]
+
+            clouds = "Hv-Rain" if clouds == "Heavy-Rain" else clouds
+            clouds = "Lt-Rain" if clouds == "Light-Rain" else clouds
+            clouds = "Part-Cld" if clouds == "Partly-Cloudy" else clouds
+
+            # adding values to x axis
+            x.append(f"{w}\n{clouds}\n{humidity}\n{track_wet}")
+
+            # adding values to y axis of both air and ground temperatures
+            y_ground_temp.append(int(ground_temp[:-1]))
+            y_air_temp.append(int(air_temp[:-1]))
+
+        # plotting ground temperatures
+        plt.plot(
+            x,
+            y_ground_temp,
+            marker="o",
+            ms=10,
+            label="ground temp",
+            color="lightslategrey",
+        )
+
+        # plotting air temperatures
+        plt.plot(
+            x, y_air_temp, marker="o", ms=10, label="air temp", color="deepskyblue"
+        )
+
+        # adding small numbers for ground temperature
+        for a, b in zip(x, y_ground_temp):
+            plt.text(
+                a,
+                b,
+                b,
+                size=6,
+                color="white",
+                horizontalalignment="center",
+                verticalalignment="center",
+            )
+
+        # adding small numbers for air temperature
+        for c, d in zip(x, y_air_temp):
+            plt.text(
+                c,
+                d,
+                d,
+                size=6,
+                color="white",
+                horizontalalignment="center",
+                verticalalignment="center",
+            )
 
         plt.margins(x=0.1)
         plt.title("Weather", fontsize=15, pad=10)
         plt.legend(fontsize=9)
-        plt.xticks(rotation=30, fontsize=9)
-        plt.ylabel("Temperature")
+        plt.xticks(rotation=0, fontsize=8, ha="left")
+        plt.ylabel("Temperature [C]")
         plt.yticks(fontsize=9)
         plt.grid(axis="x", alpha=0.3)
 
@@ -311,7 +372,7 @@ class Plotting:
 
 
 def main():
-    YEAR = 2022  # MotoGP era: 2002-current
+    YEAR = 2023  # MotoGP era: 2002-current
 
     # weather data
     weather = GatheringReasultsFrom(YEAR).weather()
@@ -321,7 +382,7 @@ def main():
     results = GatheringReasultsFrom(YEAR).riders()
     Cleaning(results)
     print()
-    Plotting(results, limit_riders=4)
+    Plotting(df=results, weather=weather, YEAR=YEAR, limit_riders=4)
 
 
 if __name__ == "__main__":
