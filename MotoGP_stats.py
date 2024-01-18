@@ -216,7 +216,7 @@ class GatheringReasultsFrom:
 
 class Plotting:
     def __new__(
-        cls, df: pd.DataFrame, weather: dict, YEAR: int, limit_riders=1, limit_races=0
+        cls, df: pd.DataFrame, weather: dict, YEAR: int, limit_riders=4, limit_races=0
     ) -> None:
         cls.df = df
         cls.weather = weather
@@ -233,8 +233,14 @@ class Plotting:
         # print clipped dataframe to console
         print(df, "\n")
 
-        # setting plot size in pixels / dpi
-        plt.figure(figsize=(1100 / 72, 600 / 72), layout="tight")
+        # setting plot layout, size (in pixels / dpi) and proportions
+        plt.subplots(
+            2,
+            1,
+            figsize=(1000 / 72, 500 / 72),
+            gridspec_kw={"height_ratios": [3, 1]},
+            layout="tight",
+        )
 
         # 1. first plot:
         # riders standings on the top
@@ -279,7 +285,7 @@ class Plotting:
                 )
         # expand margins for riders names
         plt.margins(x=0.1)
-        plt.title(f"Riders' standings {cls.YEAR}", fontsize=15, pad=10)
+        plt.title(f"Riders' standings {cls.YEAR}", fontsize=22, pad=10)
         plt.legend(fontsize=9)
         plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
@@ -312,14 +318,23 @@ class Plotting:
 
             clouds = "Hv-Rain" if clouds == "Heavy-Rain" else clouds
             clouds = "Lt-Rain" if clouds == "Light-Rain" else clouds
-            clouds = "Part-Cld" if clouds == "Partly-Cloudy" else clouds
+            clouds = "Prt-Cloud" if clouds == "Partly-Cloudy" else clouds
 
-            # adding values to x axis
+            # adding text values to x axis
             x.append(f"{w}\n{clouds}\n{humidity}\n{track_wet}")
 
             # adding values to y axis of both air and ground temperatures
-            y_ground_temp.append(int(ground_temp[:-1]))
-            y_air_temp.append(int(air_temp[:-1]))
+            try:
+                y_ground_temp.append(int(ground_temp[:-1]))
+            except ValueError:
+                # add NaN for corrupted data
+                y_ground_temp.append(np.nan)
+
+            try:
+                y_air_temp.append(int(air_temp[:-1]))
+            except ValueError:
+                # add NaN for corrupted data
+                y_air_temp.append(np.nan)
 
         # plotting ground temperatures
         plt.plot(
@@ -338,6 +353,9 @@ class Plotting:
 
         # adding small numbers for ground temperature
         for a, b in zip(x, y_ground_temp):
+            # skip number when NaN (corrupted data)
+            if np.isnan(b):
+                continue
             plt.text(
                 a,
                 b,
@@ -350,6 +368,9 @@ class Plotting:
 
         # adding small numbers for air temperature
         for c, d in zip(x, y_air_temp):
+            # skip number when NaN (corrupted data)
+            if np.isnan(d):
+                continue
             plt.text(
                 c,
                 d,
@@ -361,7 +382,7 @@ class Plotting:
             )
 
         plt.margins(x=0.1)
-        plt.title("Weather", fontsize=15, pad=10)
+        plt.title("Weather", fontsize=16, pad=10)
         plt.legend(fontsize=9)
         plt.xticks(rotation=0, fontsize=8, ha="left")
         plt.ylabel("Temperature [C]")
@@ -372,7 +393,7 @@ class Plotting:
 
 
 def main():
-    YEAR = 2023  # MotoGP era: 2002-current
+    YEAR = 2005  # MotoGP: 2002-current
 
     # weather data
     weather = GatheringReasultsFrom(YEAR).weather()
