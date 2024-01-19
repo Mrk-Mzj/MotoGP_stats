@@ -125,9 +125,7 @@ class GatheringReasultsFrom:
     # gathering weather data
     def weather(self) -> dict:
         if self.YEAR < 2005:
-            print(
-                "\n No weather data available before 2005.\n"
-            )  # TODO: check the weather plotting if we skip all steps below
+            print("\n No weather data available before 2005.\n")
 
         # gathering from cache
         try:
@@ -216,19 +214,19 @@ class GatheringReasultsFrom:
 
 class Plotting:
     def __new__(
-        cls, df: pd.DataFrame, weather: dict, YEAR: int, limit_riders=4, limit_races=0
+        cls,
+        df: pd.DataFrame,
+        weather: dict,
+        YEAR: int,
+        show_riders_pos=[1, 4],
     ) -> None:
         cls.df = df
         cls.weather = weather
         cls.YEAR = YEAR
 
-        # limit to n riders
-        if limit_riders:
-            df.drop(index=df.index[limit_riders:], inplace=True)
-
-        # limit to n races
-        if limit_races:
-            df.drop(columns=df.columns[limit_races:], inplace=True)
+        # limit range of riders to show
+        df.drop(index=df.index[show_riders_pos[1] :], inplace=True)
+        df.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
 
         # print clipped dataframe to console
         print(df, "\n")
@@ -246,15 +244,18 @@ class Plotting:
         # riders standings on the top
         plt.subplot(2, 1, 1)
 
+        # real position of the first rider on the list at the end of the season
+        selected_rider_pos = show_riders_pos[0]
+
         # plot riders standings
         for rider in df.index:
-            # plot race results for each driver
+            # plot race results for each rider
             plt.plot(
                 df.columns,
                 df.loc[rider],
                 marker="o",
                 ms=11,
-                label=rider,
+                label=f"{selected_rider_pos}. {rider}",
             )
 
             # add small numbers on each marker
@@ -273,16 +274,20 @@ class Plotting:
                     verticalalignment="center",
                 )
 
-            # add small riders names
+            # add small riders names on the plot
             # only when driver finished his first race (if not NaN)
             if not np.isnan(df.loc[rider].iloc[0]):
                 plt.text(
-                    *np.array((-0.3, df.loc[rider].iloc[0])),  # position x,y
-                    str(rider).split()[-1],  # last name
+                    # position x,y
+                    *np.array((-0.3, df.loc[rider].iloc[0])),
+                    # last name
+                    f"{selected_rider_pos}. {str(rider).split()[-1]}",
                     size=7,
                     stretch="extra-condensed",
                     horizontalalignment="right",
                 )
+            selected_rider_pos += 1
+
         # expand margins for riders names
         plt.margins(x=0.1)
         plt.title(f"Riders' standings {cls.YEAR}", fontsize=22, pad=10)
@@ -393,7 +398,7 @@ class Plotting:
 
 
 def main():
-    YEAR = 2005  # MotoGP: 2002-current
+    YEAR = 2023  # MotoGP: 2002-current
 
     # weather data
     weather = GatheringReasultsFrom(YEAR).weather()
@@ -403,7 +408,7 @@ def main():
     results = GatheringReasultsFrom(YEAR).riders()
     Cleaning(results)
     print()
-    Plotting(df=results, weather=weather, YEAR=YEAR, limit_riders=4)
+    Plotting(df=results, weather=weather, YEAR=YEAR, show_riders_pos=[1, 4])
 
 
 if __name__ == "__main__":
