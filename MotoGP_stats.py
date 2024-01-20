@@ -53,15 +53,15 @@ class Cleaning:
 
 
 class GatheringReasultsFrom:
-    def __init__(self, YEAR: int):
-        self.YEAR = YEAR
+    def __init__(self, year: int):
+        self.year = year
         self.CACHE_PATH = "cache/"
 
-        if self.YEAR < 2012:
-            self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.YEAR}_Grand_Prix_motorcycle_racing_season"
+        if self.year < 2012:
+            self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.year}_Grand_Prix_motorcycle_racing_season"
         else:
             self.WIKI_URL = (
-                f"https://en.wikipedia.org/wiki/{self.YEAR}_MotoGP_World_Championship"
+                f"https://en.wikipedia.org/wiki/{self.year}_MotoGP_World_Championship"
             )
 
     # gathering riders standings
@@ -70,15 +70,15 @@ class GatheringReasultsFrom:
         # gathering from cache
         try:
             df_riders = pd.read_pickle(
-                f"{self.CACHE_PATH}{self.YEAR}-MotoGP-riders.pkl"
+                f"{self.CACHE_PATH}{self.year}-MotoGP-riders.pkl"
             )
-            print("\n Gathering riders data from cache")
+            print(f"Gathering {self.year} riders data from cache")
             return df_riders
         except FileNotFoundError:
             pass
 
         # gathering through scrapping
-        print("\n Gathering riders data through scrapping...")
+        print(f"Gathering {self.year} riders data through scrapping...")
 
         # checking URL and connection:
         try:
@@ -118,20 +118,20 @@ class GatheringReasultsFrom:
             raise ValueError
 
         # saving file to cache
-        df_riders.to_pickle(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-riders.pkl")
+        df_riders.to_pickle(f"{self.CACHE_PATH}{self.year}-MotoGP-riders.pkl")
         return df_riders
 
     #
     # gathering weather data
     def weather(self) -> dict:
-        if self.YEAR < 2005:
-            print("\n No weather data available before 2005.\n")
+        if self.year < 2005:
+            print("\n No weather data available before 2005.")
 
         # gathering from cache
         try:
-            with open(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-weather.json", "r") as file:
+            with open(f"{self.CACHE_PATH}{self.year}-MotoGP-weather.json", "r") as file:
                 races_weather = json.load(file)
-                print("\n Gathering weather data from cache")
+                print(f"\nGathering {self.year} weather data from cache")
                 return races_weather
         except FileNotFoundError or json.JSONDecodeError:
             pass
@@ -156,7 +156,9 @@ class GatheringReasultsFrom:
             except RequestException as e:
                 raise RequestException(f"\n Error during request to {url}: {e}")
 
-        print("\n Gathering weather data through API. It may take a while...")
+        print(
+            f"\nGathering  {self.year} weather data through API. It may take a while..."
+        )
 
         # list of dictionaries - to store race names and weather
         races_weather = {}
@@ -166,7 +168,7 @@ class GatheringReasultsFrom:
         all_seasons = fetch_api_data(url)
 
         for item in all_seasons:
-            if item["year"] == self.YEAR:
+            if item["year"] == self.year:
                 season_id = item["id"]
 
         # 2. find right Category (MotoGP) id for a given Season (year)
@@ -206,7 +208,7 @@ class GatheringReasultsFrom:
                         )
 
         # saving file to cache
-        with open(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-weather.json", "w") as file:
+        with open(f"{self.CACHE_PATH}{self.year}-MotoGP-weather.json", "w") as file:
             json.dump(races_weather, file)
 
         return races_weather
@@ -217,19 +219,16 @@ class Plotting:
         cls,
         df: pd.DataFrame,
         weather: dict,
-        YEAR: int,
-        show_riders_pos=[1, 4],
+        year: int,
+        show_riders_pos=[1, 5],  # default: from 1st to 5th rider
     ) -> None:
         cls.df = df
         cls.weather = weather
-        cls.YEAR = YEAR
+        cls.year = year
 
         # limit range of riders to show
         df.drop(index=df.index[show_riders_pos[1] :], inplace=True)
         df.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
-
-        # print clipped dataframe to console
-        print(df, "\n")
 
         # setting plot layout, size (in pixels / dpi) and proportions
         plt.subplots(
@@ -290,7 +289,7 @@ class Plotting:
 
         # expand margins for riders names
         plt.margins(x=0.1)
-        plt.title(f"Riders' standings {cls.YEAR}", fontsize=22, pad=10)
+        plt.title(f"Riders' standings {cls.year}", fontsize=22, pad=10)
         plt.legend(fontsize=9)
         plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
@@ -398,17 +397,83 @@ class Plotting:
 
 
 def main():
-    YEAR = 2023  # MotoGP: 2002-current
+    # config:
+    year = 2019  # 2002 or above
+    show_riders_pos = [1, 5]
+    show_average_hist_results = True
 
-    # weather data
-    weather = GatheringReasultsFrom(YEAR).weather()
-    print("\n", json.dumps(weather))
+    MIN_YEAR = 2002  # MotoGP: 2002-current
 
-    # riders standings
-    results = GatheringReasultsFrom(YEAR).riders()
+    if year < MIN_YEAR:
+        raise ValueError("Year must be >= 2002")
+
+    # gathering weather data
+    weather = GatheringReasultsFrom(year).weather()
+
+    # gathering riders standings
+    results = GatheringReasultsFrom(year).riders()
     Cleaning(results)
-    print()
-    Plotting(df=results, weather=weather, YEAR=YEAR, show_riders_pos=[1, 4])
+
+    # TODO: convert it into a class
+    # gathering historical riders standings
+    if year >= MIN_YEAR + 3 and show_average_hist_results:
+        # simplify duplicated rows if rider changed team mid season
+        def extract_from_duplicates(current):
+            if isinstance(current, pd.Series):
+                current.dropna()  # drop NaN rows
+                if current.empty:  # there were two NaNs
+                    return np.nan
+                else:  # there were one NaN
+                    return current.iloc[0]
+            return current  # normal result
+
+        print()
+
+        results_historic_A = GatheringReasultsFrom(year - 3).riders()
+        Cleaning(results_historic_A)
+
+        results_historic_B = GatheringReasultsFrom(year - 2).riders()
+        Cleaning(results_historic_B)
+
+        results_historic_C = GatheringReasultsFrom(year - 1).riders()
+        Cleaning(results_historic_C)
+
+        # creating dataframe equivalent to 'results' but full of NaN.
+        # To be filled with average results from 3 prev years, where possible
+        results_historic_average = results.map(lambda x: np.nan)
+
+        # Filling with average results
+        for racer in results_historic_average.index:
+            for track in results_historic_average.columns:
+                try:
+                    # Trying to check if rider was on this track in all 3 previous years
+                    extracted_A = extract_from_duplicates(
+                        results_historic_A.at[racer, track]
+                    )
+                    extracted_B = extract_from_duplicates(
+                        results_historic_B.at[racer, track]
+                    )
+                    extracted_C = extract_from_duplicates(
+                        results_historic_C.at[racer, track]
+                    )
+
+                    # if not NaN found, calculate average result
+                    if (
+                        pd.notna(extracted_A)
+                        and pd.notna(extracted_B)
+                        and pd.notna(extracted_C)
+                    ):
+                        average = np.mean([extracted_A, extracted_B, extracted_C])
+                        results_historic_average.at[racer, track] = average
+
+                except KeyError:
+                    # If a rider or track doesn't exist in one of the previous years (KeyError), just skip it.
+                    continue
+
+        print(results_historic_average)
+
+    # plotting
+    Plotting(df=results, weather=weather, year=year, show_riders_pos=show_riders_pos)
 
 
 if __name__ == "__main__":
