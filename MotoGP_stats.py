@@ -64,6 +64,64 @@ class GatheringReasultsFrom:
                 f"https://en.wikipedia.org/wiki/{self.year}_MotoGP_World_Championship"
             )
 
+    #
+    # gathering historical average of 3 previous seasons
+    def history(self, results: pd.DataFrame) -> pd.DataFrame:
+        #
+        # simplify duplicated rows if rider changed team mid season
+        def extract_from_duplicates(current):
+            if isinstance(current, pd.Series):
+                current.dropna()  # drop NaN rows
+                if current.empty:  # there were two NaNs
+                    return np.nan
+                else:  # there were one NaN
+                    return current.iloc[0]
+            return current  # normal result
+
+        results_hist_A = GatheringReasultsFrom(self.year - 3).riders()
+        Cleaning(results_hist_A)
+
+        results_hist_B = GatheringReasultsFrom(self.year - 2).riders()
+        Cleaning(results_hist_B)
+
+        results_hist_C = GatheringReasultsFrom(self.year - 1).riders()
+        Cleaning(results_hist_C)
+
+        # creating dataframe equivalent to 'results' but full of NaN.
+        # To be filled with average results from 3 prev years, where possible
+        results_hist_avrg = results.map(lambda x: np.nan)
+
+        # Filling with average results
+        for racer in results_hist_avrg.index:
+            for track in results_hist_avrg.columns:
+                try:
+                    # Trying to check if rider was on this track in all 3 previous years
+                    extracted_A = extract_from_duplicates(
+                        results_hist_A.at[racer, track]
+                    )
+                    extracted_B = extract_from_duplicates(
+                        results_hist_B.at[racer, track]
+                    )
+                    extracted_C = extract_from_duplicates(
+                        results_hist_C.at[racer, track]
+                    )
+
+                    # if not NaN found, calculate average result
+                    if (
+                        pd.notna(extracted_A)
+                        and pd.notna(extracted_B)
+                        and pd.notna(extracted_C)
+                    ):
+                        average = np.mean([extracted_A, extracted_B, extracted_C])
+                        results_hist_avrg.at[racer, track] = average
+
+                except KeyError:
+                    # If a rider or track doesn't exist in one of the previous years (KeyError), just skip it.
+                    continue
+
+        return results_hist_avrg
+
+    #
     # gathering riders standings
     def riders(self) -> pd.DataFrame:
         #
@@ -86,11 +144,11 @@ class GatheringReasultsFrom:
             response.raise_for_status()  # will rise HTTPError if != 200
 
         except ConnectionError:
-            raise ConnectionError("\n Internet connection Error!")
+            raise ConnectionError("\nInternet connection Error!")
         except HTTPError as e:
-            raise HTTPError(f"\n HTTP error occurred: {e}")
+            raise HTTPError(f"\nHTTP error occurred: {e}")
         except RequestException as e:
-            raise RequestException(f"\n Error during request to {self.WIKI_URL}: {e}")
+            raise RequestException(f"\nError during request to {self.WIKI_URL}: {e}")
 
         # creating Soup object
         soup = BeautifulSoup(response.content, "html.parser")
@@ -103,7 +161,7 @@ class GatheringReasultsFrom:
         try:
             df_tables = pd.read_html(StringIO(str(soup)), attrs={"class": "wikitable"})
         except ValueError:  # 2003 wiki table is corrupted
-            sys.exit(f"\n Error reading table!")
+            sys.exit(f"\nError reading table!")
 
         # extract riders standings table:
         df_riders = pd.DataFrame()
@@ -114,7 +172,7 @@ class GatheringReasultsFrom:
 
         # make sure riders standings table was found:
         if df_riders.empty:
-            print(f"\n No riders standings found!\n")
+            print(f"\nNo riders standings found!\n")
             raise ValueError
 
         # saving file to cache
@@ -125,7 +183,7 @@ class GatheringReasultsFrom:
     # gathering weather data
     def weather(self) -> dict:
         if self.year < 2005:
-            print("\n No weather data available before 2005.")
+            print("\nNo weather data available before 2005.")
 
         # gathering from cache
         try:
@@ -146,15 +204,15 @@ class GatheringReasultsFrom:
                 return data
 
             except ConnectionError:
-                raise ConnectionError("\n Internet connection Error!")
+                raise ConnectionError("\nInternet connection Error!")
             except HTTPError as e:
                 raise HTTPError(
-                    f"\n Error connecting to {url} \n code: {response.status_code}"
+                    f"\nError connecting to {url} \ncode: {response.status_code}"
                 )
             except json.JSONDecodeError:
-                raise ValueError(f"\n Invalid JSON response from url {url}")
+                raise ValueError(f"\nInvalid JSON response from url {url}")
             except RequestException as e:
-                raise RequestException(f"\n Error during request to {url}: {e}")
+                raise RequestException(f"\nError during request to {url}: {e}")
 
         print(
             f"\nGathering  {self.year} weather data through API. It may take a while..."
@@ -221,14 +279,30 @@ class Plotting:
         weather: dict,
         year: int,
         show_riders_pos=[1, 5],  # default: from 1st to 5th rider
+        df_hist=None,
     ) -> None:
         cls.df = df
+        cls.df_hist = df_hist
         cls.weather = weather
         cls.year = year
 
         # limit range of riders to show
         df.drop(index=df.index[show_riders_pos[1] :], inplace=True)
         df.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
+        if not df_hist.empty:
+            df_hist.drop(index=df.index[show_riders_pos[1] :], inplace=True)
+            df_hist.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
+
+        print(df)
+        # real position of the rider (considering shortening the list)
+        selected_rider_pos = show_riders_pos[0]
+
+        # number of riders to show
+        nr_of_riders = len(df.index)
+
+        # setting colormap of the plot
+        cmap = plt.colormaps["tab10"]  # colormap 10 colors long
+        colors = cmap(range(nr_of_riders))
 
         # setting plot layout, size (in pixels / dpi) and proportions
         plt.subplots(
@@ -243,17 +317,38 @@ class Plotting:
         # riders standings on the top
         plt.subplot(2, 1, 1)
 
-        # real position of the first rider on the list at the end of the season
-        selected_rider_pos = show_riders_pos[0]
+        current_pass = 0  # counter
 
         # plot riders standings
         for rider in df.index:
-            # plot race results for each rider
+            # colormap has 10 colors, so for 11-th rider we change line style and restart colors
+            color = (
+                colors[current_pass] if current_pass < 10 else colors[current_pass - 10]
+            )
+
+            linestyle = "-" if current_pass < 10 else "-."
+
+            # a) plot historical results
+            if not df_hist.empty:
+                plt.plot(
+                    df_hist.columns,
+                    df_hist.loc[rider],
+                    marker="o",
+                    ms=15,
+                    markeredgewidth=0,
+                    linewidth=4,
+                    alpha=0.1,
+                    color=color,
+                    linestyle=linestyle,
+                )
+            # b) plot current season results for each rider
             plt.plot(
                 df.columns,
                 df.loc[rider],
                 marker="o",
                 ms=11,
+                color=color,
+                linestyle=linestyle,
                 label=f"{selected_rider_pos}. {rider}",
             )
 
@@ -286,6 +381,7 @@ class Plotting:
                     horizontalalignment="right",
                 )
             selected_rider_pos += 1
+            current_pass += 1
 
         # expand margins for riders names
         plt.margins(x=0.1)
@@ -398,11 +494,10 @@ class Plotting:
 
 def main():
     # config:
-    year = 2019  # 2002 or above
     show_riders_pos = [1, 5]
     show_average_hist_results = True
-
     MIN_YEAR = 2002  # MotoGP: 2002-current
+    year = 2019
 
     if year < MIN_YEAR:
         raise ValueError("Year must be >= 2002")
@@ -414,66 +509,20 @@ def main():
     results = GatheringReasultsFrom(year).riders()
     Cleaning(results)
 
-    # TODO: convert it into a class
-    # gathering historical riders standings
     if year >= MIN_YEAR + 3 and show_average_hist_results:
-        # simplify duplicated rows if rider changed team mid season
-        def extract_from_duplicates(current):
-            if isinstance(current, pd.Series):
-                current.dropna()  # drop NaN rows
-                if current.empty:  # there were two NaNs
-                    return np.nan
-                else:  # there were one NaN
-                    return current.iloc[0]
-            return current  # normal result
-
-        print()
-
-        results_historic_A = GatheringReasultsFrom(year - 3).riders()
-        Cleaning(results_historic_A)
-
-        results_historic_B = GatheringReasultsFrom(year - 2).riders()
-        Cleaning(results_historic_B)
-
-        results_historic_C = GatheringReasultsFrom(year - 1).riders()
-        Cleaning(results_historic_C)
-
-        # creating dataframe equivalent to 'results' but full of NaN.
-        # To be filled with average results from 3 prev years, where possible
-        results_historic_average = results.map(lambda x: np.nan)
-
-        # Filling with average results
-        for racer in results_historic_average.index:
-            for track in results_historic_average.columns:
-                try:
-                    # Trying to check if rider was on this track in all 3 previous years
-                    extracted_A = extract_from_duplicates(
-                        results_historic_A.at[racer, track]
-                    )
-                    extracted_B = extract_from_duplicates(
-                        results_historic_B.at[racer, track]
-                    )
-                    extracted_C = extract_from_duplicates(
-                        results_historic_C.at[racer, track]
-                    )
-
-                    # if not NaN found, calculate average result
-                    if (
-                        pd.notna(extracted_A)
-                        and pd.notna(extracted_B)
-                        and pd.notna(extracted_C)
-                    ):
-                        average = np.mean([extracted_A, extracted_B, extracted_C])
-                        results_historic_average.at[racer, track] = average
-
-                except KeyError:
-                    # If a rider or track doesn't exist in one of the previous years (KeyError), just skip it.
-                    continue
-
-        print(results_historic_average)
+        # gathering historical riders standings
+        results_hist_avrg = GatheringReasultsFrom(year).history(results)
+    else:
+        results_hist_avrg = pd.DataFrame  # empty dataframe
 
     # plotting
-    Plotting(df=results, weather=weather, year=year, show_riders_pos=show_riders_pos)
+    Plotting(
+        df=results,
+        weather=weather,
+        year=year,
+        show_riders_pos=show_riders_pos,
+        df_hist=results_hist_avrg,
+    )
 
 
 if __name__ == "__main__":
