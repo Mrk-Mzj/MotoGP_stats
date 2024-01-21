@@ -49,36 +49,113 @@ class Cleaning:
         # converting columns from object to numeric:
         df[df.columns] = df[df.columns].apply(pd.to_numeric)
 
-        return df
+        # grouping duplicated indexes into one; duplicates occur
+        # when rider changes team mid season:
+
+        def choose_one(series):
+            # return number, if possible, or NaN
+            if not series.dropna().empty:
+                return series.dropna().iloc[0]
+            else:
+                return np.nan
+
+        # variables to temporarily store processed rows and indexes (names). Rows will be converted into dataframe, and names will become indexes.
+        riders_list = []
+        merged_rows_list = []
+
+        # for unique drivers names (skipping copies)
+        for rider in df.index.unique():
+            #
+            # select row (or rows) of data for a current rider
+            current_rows = df.loc[rider]
+
+            # merge those into a single new merged row
+            if isinstance(current_rows, pd.DataFrame):
+                merged_row = current_rows.apply(choose_one)
+            else:
+                merged_row = current_rows
+
+            # add this row to list of merged rows
+            merged_rows_list.append(merged_row)
+
+            # add rider name to list of riders
+            riders_list.append(rider)
+
+        # convert list of merged rows into dataframe; transpose columns to rows
+        df_cleaned = pd.concat(merged_rows_list, axis=1).transpose()
+
+        # set indexies to riders names
+        df_cleaned.index = riders_list
+
+        # set columns names to original ones
+        df_cleaned.columns = df.columns
+
+        return df_cleaned
 
 
 class GatheringReasultsFrom:
-    def __init__(self, YEAR: int):
-        self.YEAR = YEAR
+    def __init__(self, year: int):
+        self.year = year
         self.CACHE_PATH = "cache/"
 
-        if self.YEAR < 2012:
-            self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.YEAR}_Grand_Prix_motorcycle_racing_season"
+        if self.year < 2012:
+            self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.year}_Grand_Prix_motorcycle_racing_season"
         else:
             self.WIKI_URL = (
-                f"https://en.wikipedia.org/wiki/{self.YEAR}_MotoGP_World_Championship"
+                f"https://en.wikipedia.org/wiki/{self.year}_MotoGP_World_Championship"
             )
 
+    #
+    # gathering historical average of 3 previous seasons
+    def history(self, results: pd.DataFrame) -> pd.DataFrame:
+        results_hist_A = Cleaning(GatheringReasultsFrom(self.year - 3).riders())
+        results_hist_B = Cleaning(GatheringReasultsFrom(self.year - 2).riders())
+        results_hist_C = Cleaning(GatheringReasultsFrom(self.year - 1).riders())
+
+        # creating dataframe equivalent to 'results' but full of NaN.
+        # To be filled with average results from 3 prev years, where possible
+        results_hist_avrg = results.map(lambda x: np.nan)
+
+        # Filling with average results
+        for rider in results_hist_avrg.index:
+            for track in results_hist_avrg.columns:
+                try:
+                    # Trying to check if rider was on this track in all 3 previous years
+                    extracted_A = results_hist_A.at[rider, track]
+                    extracted_B = results_hist_B.at[rider, track]
+                    extracted_C = results_hist_C.at[rider, track]
+
+                    # if not NaN found, calculate average result
+                    if (
+                        pd.notna(extracted_A)
+                        and pd.notna(extracted_B)
+                        and pd.notna(extracted_C)
+                    ):
+                        average = np.mean([extracted_A, extracted_B, extracted_C])
+                        results_hist_avrg.at[rider, track] = average
+
+                except KeyError:
+                    # If a rider or track doesn't exist in one of the previous years (KeyError), just skip it.
+                    continue
+
+        return results_hist_avrg
+
+    #
     # gathering riders standings
     def riders(self) -> pd.DataFrame:
         #
         # gathering from cache
         try:
             df_riders = pd.read_pickle(
-                f"{self.CACHE_PATH}{self.YEAR}-MotoGP-riders.pkl"
+                f"{self.CACHE_PATH}{self.year}-MotoGP-riders.pkl"
             )
-            print("\n Gathering riders data from cache")
+            print(f"Gathering {self.year} riders data from cache")
             return df_riders
         except FileNotFoundError:
             pass
 
         # gathering through scrapping
-        print("\n Gathering riders data through scrapping...")
+        print(f"Gathering {self.year} riders data through scrapping...")
 
         # checking URL and connection:
         try:
@@ -86,11 +163,11 @@ class GatheringReasultsFrom:
             response.raise_for_status()  # will rise HTTPError if != 200
 
         except ConnectionError:
-            raise ConnectionError("\n Internet connection Error!")
+            raise ConnectionError("\nInternet connection Error!")
         except HTTPError as e:
-            raise HTTPError(f"\n HTTP error occurred: {e}")
+            raise HTTPError(f"\nHTTP error occurred: {e}")
         except RequestException as e:
-            raise RequestException(f"\n Error during request to {self.WIKI_URL}: {e}")
+            raise RequestException(f"\nError during request to {self.WIKI_URL}: {e}")
 
         # creating Soup object
         soup = BeautifulSoup(response.content, "html.parser")
@@ -103,7 +180,7 @@ class GatheringReasultsFrom:
         try:
             df_tables = pd.read_html(StringIO(str(soup)), attrs={"class": "wikitable"})
         except ValueError:  # 2003 wiki table is corrupted
-            sys.exit(f"\n Error reading table!")
+            sys.exit(f"\nError reading table!")
 
         # extract riders standings table:
         df_riders = pd.DataFrame()
@@ -114,24 +191,24 @@ class GatheringReasultsFrom:
 
         # make sure riders standings table was found:
         if df_riders.empty:
-            print(f"\n No riders standings found!\n")
+            print(f"\nNo riders standings found!\n")
             raise ValueError
 
         # saving file to cache
-        df_riders.to_pickle(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-riders.pkl")
+        df_riders.to_pickle(f"{self.CACHE_PATH}{self.year}-MotoGP-riders.pkl")
         return df_riders
 
     #
     # gathering weather data
     def weather(self) -> dict:
-        if self.YEAR < 2005:
-            print("\n No weather data available before 2005.\n")
+        if self.year < 2005:
+            print("\nNo weather data available before 2005.")
 
         # gathering from cache
         try:
-            with open(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-weather.json", "r") as file:
+            with open(f"{self.CACHE_PATH}{self.year}-MotoGP-weather.json", "r") as file:
                 races_weather = json.load(file)
-                print("\n Gathering weather data from cache")
+                print(f"\nGathering {self.year} weather data from cache")
                 return races_weather
         except FileNotFoundError or json.JSONDecodeError:
             pass
@@ -146,17 +223,19 @@ class GatheringReasultsFrom:
                 return data
 
             except ConnectionError:
-                raise ConnectionError("\n Internet connection Error!")
+                raise ConnectionError("\nInternet connection Error!")
             except HTTPError as e:
                 raise HTTPError(
-                    f"\n Error connecting to {url} \n code: {response.status_code}"
+                    f"\nError connecting to {url} \ncode: {response.status_code}"
                 )
             except json.JSONDecodeError:
-                raise ValueError(f"\n Invalid JSON response from url {url}")
+                raise ValueError(f"\nInvalid JSON response from url {url}")
             except RequestException as e:
-                raise RequestException(f"\n Error during request to {url}: {e}")
+                raise RequestException(f"\nError during request to {url}: {e}")
 
-        print("\n Gathering weather data through API. It may take a while...")
+        print(
+            f"\nGathering  {self.year} weather data through API. It may take a while..."
+        )
 
         # list of dictionaries - to store race names and weather
         races_weather = {}
@@ -166,7 +245,7 @@ class GatheringReasultsFrom:
         all_seasons = fetch_api_data(url)
 
         for item in all_seasons:
-            if item["year"] == self.YEAR:
+            if item["year"] == self.year:
                 season_id = item["id"]
 
         # 2. find right Category (MotoGP) id for a given Season (year)
@@ -206,7 +285,7 @@ class GatheringReasultsFrom:
                         )
 
         # saving file to cache
-        with open(f"{self.CACHE_PATH}{self.YEAR}-MotoGP-weather.json", "w") as file:
+        with open(f"{self.CACHE_PATH}{self.year}-MotoGP-weather.json", "w") as file:
             json.dump(races_weather, file)
 
         return races_weather
@@ -217,25 +296,35 @@ class Plotting:
         cls,
         df: pd.DataFrame,
         weather: dict,
-        YEAR: int,
-        show_riders_pos=[1, 4],
+        year: int,
+        show_riders_pos=[1, 5],  # default: from 1st to 5th rider
+        df_hist=pd.DataFrame(),
     ) -> None:
-        cls.df = df
-        cls.weather = weather
-        cls.YEAR = YEAR
-
+        #
         # limit range of riders to show
         df.drop(index=df.index[show_riders_pos[1] :], inplace=True)
         df.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
+        if not df_hist.empty:
+            df_hist.drop(index=df_hist.index[show_riders_pos[1] :], inplace=True)
+            df_hist.drop(index=df_hist.index[: show_riders_pos[0] - 1], inplace=True)
 
-        # print clipped dataframe to console
-        print(df, "\n")
+        # real position of the rider (considering shortening the list)
+        selected_rider_pos = show_riders_pos[0]
+
+        # number of riders to show
+        nr_of_riders = len(df.index)
+        if nr_of_riders > 20:
+            print("\nPlot is most readable up to 20 riders")
+
+        # setting colormap of the plot
+        cmap = plt.colormaps["tab10"]  # colormap 10 colors long
+        colors = cmap(range(nr_of_riders))
 
         # setting plot layout, size (in pixels / dpi) and proportions
         plt.subplots(
             2,
             1,
-            figsize=(1000 / 72, 500 / 72),
+            figsize=(1000 / 72, 600 / 72),
             gridspec_kw={"height_ratios": [3, 1]},
             layout="tight",
         )
@@ -244,17 +333,42 @@ class Plotting:
         # riders standings on the top
         plt.subplot(2, 1, 1)
 
-        # real position of the first rider on the list at the end of the season
-        selected_rider_pos = show_riders_pos[0]
+        current_pass = 0  # counter
 
         # plot riders standings
         for rider in df.index:
-            # plot race results for each rider
+            # colormap has 10 colors, so for 11-th rider we change line style and restart colors
+            if current_pass < 10:
+                linestyle = "-"
+                color = colors[current_pass]
+            elif current_pass < 20:
+                linestyle = "-."
+                color = colors[current_pass - 10]
+            else:
+                linestyle = ":"
+                color = colors[current_pass - 20]
+
+            # a) plot historical results
+            if not df_hist.empty:
+                plt.plot(
+                    df_hist.columns,
+                    df_hist.loc[rider],
+                    marker="o",
+                    ms=15,
+                    markeredgewidth=0,
+                    linewidth=4,
+                    alpha=0.1,
+                    color=color,
+                    linestyle=linestyle,
+                )
+            # b) plot current season results for each rider
             plt.plot(
                 df.columns,
                 df.loc[rider],
                 marker="o",
                 ms=11,
+                color=color,
+                linestyle=linestyle,
                 label=f"{selected_rider_pos}. {rider}",
             )
 
@@ -287,10 +401,11 @@ class Plotting:
                     horizontalalignment="right",
                 )
             selected_rider_pos += 1
+            current_pass += 1
 
         # expand margins for riders names
         plt.margins(x=0.1)
-        plt.title(f"Riders' standings {cls.YEAR}", fontsize=22, pad=10)
+        plt.title(f"Riders' standings {year}", fontsize=22, pad=10)
         plt.legend(fontsize=9)
         plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
@@ -398,17 +513,36 @@ class Plotting:
 
 
 def main():
-    YEAR = 2023  # MotoGP: 2002-current
+    # config:
+    show_riders_pos = [1, 5]
+    show_average_hist_results = True
+    MIN_YEAR = 2002  # MotoGP: 2002-current
+    year = 2023
 
-    # weather data
-    weather = GatheringReasultsFrom(YEAR).weather()
-    print("\n", json.dumps(weather))
+    if year < MIN_YEAR:
+        raise ValueError("Year must be >= 2002")
 
-    # riders standings
-    results = GatheringReasultsFrom(YEAR).riders()
-    Cleaning(results)
-    print()
-    Plotting(df=results, weather=weather, YEAR=YEAR, show_riders_pos=[1, 4])
+    # gathering weather data
+    weather = GatheringReasultsFrom(year).weather()
+
+    # gathering riders standings
+    results = GatheringReasultsFrom(year).riders()
+    results = Cleaning(results)
+
+    if year >= MIN_YEAR + 3 and show_average_hist_results:
+        # gathering historical riders standings
+        results_hist_avrg = GatheringReasultsFrom(year).history(results)
+    else:
+        results_hist_avrg = pd.DataFrame  # empty dataframe
+
+    # plotting
+    Plotting(
+        df=results,
+        weather=weather,
+        year=year,
+        show_riders_pos=show_riders_pos,
+        df_hist=results_hist_avrg,
+    )
 
 
 if __name__ == "__main__":
