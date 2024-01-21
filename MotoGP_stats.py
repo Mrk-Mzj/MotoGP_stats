@@ -59,7 +59,6 @@ class Cleaning:
             else:
                 return np.nan
 
-
         # variables to temporarily store processed rows and indexes (names). Rows will be converted into dataframe, and names will become indexes.
         riders_list = []
         merged_rows_list = []
@@ -299,19 +298,15 @@ class Plotting:
         weather: dict,
         year: int,
         show_riders_pos=[1, 5],  # default: from 1st to 5th rider
-        df_hist=None,
+        df_hist=pd.DataFrame(),
     ) -> None:
-        cls.df = df
-        cls.df_hist = df_hist
-        cls.weather = weather
-        cls.year = year
-
+        #
         # limit range of riders to show
         df.drop(index=df.index[show_riders_pos[1] :], inplace=True)
         df.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
         if not df_hist.empty:
-            df_hist.drop(index=df.index[show_riders_pos[1] :], inplace=True)
-            df_hist.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
+            df_hist.drop(index=df_hist.index[show_riders_pos[1] :], inplace=True)
+            df_hist.drop(index=df_hist.index[: show_riders_pos[0] - 1], inplace=True)
 
         # real position of the rider (considering shortening the list)
         selected_rider_pos = show_riders_pos[0]
@@ -410,7 +405,7 @@ class Plotting:
 
         # expand margins for riders names
         plt.margins(x=0.1)
-        plt.title(f"Riders' standings {cls.year}", fontsize=22, pad=10)
+        plt.title(f"Riders' standings {year}", fontsize=22, pad=10)
         plt.legend(fontsize=9)
         plt.xticks(rotation=30, fontsize=9)
         plt.ylabel("Place")
@@ -519,7 +514,7 @@ class Plotting:
 
 def main():
     # config:
-    show_riders_pos = [1, 50]
+    show_riders_pos = [1, 5]
     show_average_hist_results = True
     MIN_YEAR = 2002  # MotoGP: 2002-current
     year = 2023
