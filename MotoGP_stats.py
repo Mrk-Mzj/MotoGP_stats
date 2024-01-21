@@ -51,17 +51,47 @@ class Cleaning:
 
         # grouping duplicated indexes into one; duplicates occur
         # when rider changes team mid season:
-        def choose_one(to_check):
-            # compares two values and returns number, if possible
-            current = to_check.dropna()  # delete NaNs
-            if current.empty:  # there were two NaNs
-                return np.nan
-            else:
-                return current.iloc[0]  # return number
 
-        # grouping duplicated indexes using choose_one
-        df = df.groupby(df.index).aggregate(choose_one)
-        return df
+        def choose_one(series):
+            # return number, if possible, or NaN
+            if not series.dropna().empty:
+                return series.dropna().iloc[0]
+            else:
+                return np.nan
+
+
+        # variables to temporarily store processed rows and indexes (names). Rows will be converted into dataframe, and names will become indexes.
+        riders_list = []
+        merged_rows_list = []
+
+        # for unique drivers names (skipping copies)
+        for rider in df.index.unique():
+            #
+            # select row (or rows) of data for a current rider
+            current_rows = df.loc[rider]
+
+            # merge those into a single new merged row
+            if isinstance(current_rows, pd.DataFrame):
+                merged_row = current_rows.apply(choose_one)
+            else:
+                merged_row = current_rows
+
+            # add this row to list of merged rows
+            merged_rows_list.append(merged_row)
+
+            # add rider name to list of riders
+            riders_list.append(rider)
+
+        # convert list of merged rows into dataframe; transpose columns to rows
+        df_cleaned = pd.concat(merged_rows_list, axis=1).transpose()
+
+        # set indexies to riders names
+        df_cleaned.index = riders_list
+
+        # set columns names to original ones
+        df_cleaned.columns = df.columns
+
+        return df_cleaned
 
 
 class GatheringReasultsFrom:
@@ -288,6 +318,8 @@ class Plotting:
 
         # number of riders to show
         nr_of_riders = len(df.index)
+        if nr_of_riders > 20:
+            print("\nPlot is most readable up to 20 riders")
 
         # setting colormap of the plot
         cmap = plt.colormaps["tab10"]  # colormap 10 colors long
@@ -297,7 +329,7 @@ class Plotting:
         plt.subplots(
             2,
             1,
-            figsize=(1000 / 72, 500 / 72),
+            figsize=(1000 / 72, 600 / 72),
             gridspec_kw={"height_ratios": [3, 1]},
             layout="tight",
         )
@@ -487,10 +519,10 @@ class Plotting:
 
 def main():
     # config:
-    show_riders_pos = [2, 50]
-    show_average_hist_results = False
+    show_riders_pos = [1, 50]
+    show_average_hist_results = True
     MIN_YEAR = 2002  # MotoGP: 2002-current
-    year = 2022
+    year = 2023
 
     if year < MIN_YEAR:
         raise ValueError("Year must be >= 2002")
