@@ -49,6 +49,18 @@ class Cleaning:
         # converting columns from object to numeric:
         df[df.columns] = df[df.columns].apply(pd.to_numeric)
 
+        # grouping duplicated indexes into one; duplicates occur
+        # when rider changes team mid season:
+        def choose_one(to_check):
+            # compares two values and returns number, if possible
+            current = to_check.dropna()  # delete NaNs
+            if current.empty:  # there were two NaNs
+                return np.nan
+            else:
+                return current.iloc[0]  # return number
+
+        # grouping duplicated indexes using choose_one
+        df = df.groupby(df.index).aggregate(choose_one)
         return df
 
 
@@ -67,44 +79,22 @@ class GatheringReasultsFrom:
     #
     # gathering historical average of 3 previous seasons
     def history(self, results: pd.DataFrame) -> pd.DataFrame:
-        #
-        # simplify duplicated rows if rider changed team mid season
-        def extract_from_duplicates(current):
-            if isinstance(current, pd.Series):
-                current.dropna()  # drop NaN rows
-                if current.empty:  # there were two NaNs
-                    return np.nan
-                else:  # there were one NaN
-                    return current.iloc[0]
-            return current  # normal result
-
-        results_hist_A = GatheringReasultsFrom(self.year - 3).riders()
-        Cleaning(results_hist_A)
-
-        results_hist_B = GatheringReasultsFrom(self.year - 2).riders()
-        Cleaning(results_hist_B)
-
-        results_hist_C = GatheringReasultsFrom(self.year - 1).riders()
-        Cleaning(results_hist_C)
+        results_hist_A = Cleaning(GatheringReasultsFrom(self.year - 3).riders())
+        results_hist_B = Cleaning(GatheringReasultsFrom(self.year - 2).riders())
+        results_hist_C = Cleaning(GatheringReasultsFrom(self.year - 1).riders())
 
         # creating dataframe equivalent to 'results' but full of NaN.
         # To be filled with average results from 3 prev years, where possible
         results_hist_avrg = results.map(lambda x: np.nan)
 
         # Filling with average results
-        for racer in results_hist_avrg.index:
+        for rider in results_hist_avrg.index:
             for track in results_hist_avrg.columns:
                 try:
                     # Trying to check if rider was on this track in all 3 previous years
-                    extracted_A = extract_from_duplicates(
-                        results_hist_A.at[racer, track]
-                    )
-                    extracted_B = extract_from_duplicates(
-                        results_hist_B.at[racer, track]
-                    )
-                    extracted_C = extract_from_duplicates(
-                        results_hist_C.at[racer, track]
-                    )
+                    extracted_A = results_hist_A.at[rider, track]
+                    extracted_B = results_hist_B.at[rider, track]
+                    extracted_C = results_hist_C.at[rider, track]
 
                     # if not NaN found, calculate average result
                     if (
@@ -113,7 +103,7 @@ class GatheringReasultsFrom:
                         and pd.notna(extracted_C)
                     ):
                         average = np.mean([extracted_A, extracted_B, extracted_C])
-                        results_hist_avrg.at[racer, track] = average
+                        results_hist_avrg.at[rider, track] = average
 
                 except KeyError:
                     # If a rider or track doesn't exist in one of the previous years (KeyError), just skip it.
@@ -293,7 +283,6 @@ class Plotting:
             df_hist.drop(index=df.index[show_riders_pos[1] :], inplace=True)
             df_hist.drop(index=df.index[: show_riders_pos[0] - 1], inplace=True)
 
-        print(df)
         # real position of the rider (considering shortening the list)
         selected_rider_pos = show_riders_pos[0]
 
@@ -322,11 +311,15 @@ class Plotting:
         # plot riders standings
         for rider in df.index:
             # colormap has 10 colors, so for 11-th rider we change line style and restart colors
-            color = (
-                colors[current_pass] if current_pass < 10 else colors[current_pass - 10]
-            )
-
-            linestyle = "-" if current_pass < 10 else "-."
+            if current_pass < 10:
+                linestyle = "-"
+                color = colors[current_pass]
+            elif current_pass < 20:
+                linestyle = "-."
+                color = colors[current_pass - 10]
+            else:
+                linestyle = ":"
+                color = colors[current_pass - 20]
 
             # a) plot historical results
             if not df_hist.empty:
@@ -494,10 +487,10 @@ class Plotting:
 
 def main():
     # config:
-    show_riders_pos = [1, 5]
-    show_average_hist_results = True
+    show_riders_pos = [2, 50]
+    show_average_hist_results = False
     MIN_YEAR = 2002  # MotoGP: 2002-current
-    year = 2019
+    year = 2022
 
     if year < MIN_YEAR:
         raise ValueError("Year must be >= 2002")
@@ -507,7 +500,7 @@ def main():
 
     # gathering riders standings
     results = GatheringReasultsFrom(year).riders()
-    Cleaning(results)
+    results = Cleaning(results)
 
     if year >= MIN_YEAR + 3 and show_average_hist_results:
         # gathering historical riders standings
