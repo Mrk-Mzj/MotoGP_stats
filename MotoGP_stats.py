@@ -125,14 +125,14 @@ class GatheringReasultsFrom:
                     extracted_B = results_hist_B.at[rider, track]
                     extracted_C = results_hist_C.at[rider, track]
 
-                    # if not NaN found, calculate average result
-                    if (
-                        pd.notna(extracted_A)
-                        and pd.notna(extracted_B)
-                        and pd.notna(extracted_C)
-                    ):
-                        average = np.mean([extracted_A, extracted_B, extracted_C])
-                        results_hist_avrg.at[rider, track] = average
+                    # If so, calculate average.
+                    # Important: due to >>lots<< of unfinished races, function doesn't require all 3 races to be finished. So the final mean may be calculated of 3 or just 2 results.
+                    mean_list = []
+                    for _ in [extracted_A, extracted_B, extracted_C]:
+                        if pd.notna(_):
+                            mean_list.append(_)
+                    if len(mean_list) > 1:
+                        results_hist_avrg.at[rider, track] = np.mean(mean_list)
 
                 except KeyError:
                     # If a rider or track doesn't exist in one of the previous years (KeyError), just skip it.

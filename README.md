@@ -5,9 +5,6 @@ View the change in MotoGP rider form over the course of the season. Check the hi
 
 Driver results scraped from Wikipedia. Weather data downloaded from API.
 
-### under development:
-- viewing weather data (air and track temperature, humidity, clouds)
-- viewing the driver's average score on a given track
 
 ## Requirements
 - bs4
