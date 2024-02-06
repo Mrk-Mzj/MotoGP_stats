@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,6 +27,13 @@ SECRET_KEY = "django-insecure-f$19ltrtt_3_26uwk^24tv^be33#zu_h8x1@mm=f9(%!hp8xot
 DEBUG = True
 
 ALLOWED_HOSTS = []
+
+
+# Base url to serve media files
+MEDIA_URL = "charts_app/media/charts_app/"
+
+# Path where media is stored'
+MEDIA_ROOT = BASE_DIR / "charts_app/media/charts_app/"
 
 
 # Application definition

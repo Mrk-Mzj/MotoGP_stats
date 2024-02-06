@@ -96,7 +96,7 @@ class Cleaning:
 class GatheringReasultsFrom:
     def __init__(self, year: int):
         self.year = year
-        self.CACHE_PATH = "cache/"
+        self.CACHE_PATH = "utils/cache/"
 
         if self.year < 2012:
             self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.year}_Grand_Prix_motorcycle_racing_season"
@@ -509,7 +509,8 @@ class Plotting:
         plt.yticks(fontsize=9)
         plt.grid(axis="x", alpha=0.3)
 
-        plt.show()
+        plt.savefig("charts_app/media/charts_app/plot.png")
+        # plt.show()
 
 
 def main():
