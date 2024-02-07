@@ -4,10 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <title>MotoGP stats</title>
+
+    {% load static %}
+    <link href="{% static 'charts_app/styles.css' %}" rel="stylesheet">
 </head>
 
 <body>
-    <img src="{{ MEDIA_URL }}plot.png" style="height:70vh; display: block;margin:auto">
+    <img src="{{ MEDIA_URL }}plot.png" class="max-width">
+    <div class="max-width">
+        <form action="" method="post">
+            {% csrf_token %}
+            {{ form }}
+            <input type="submit" style="display: block; margin:auto">
+        </form>
+    </div>
 
 </body>
 

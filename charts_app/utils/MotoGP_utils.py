@@ -96,7 +96,7 @@ class Cleaning:
 class GatheringReasultsFrom:
     def __init__(self, year: int):
         self.year = year
-        self.CACHE_PATH = "utils/cache/"
+        self.CACHE_PATH = "charts_app/utils/cache/"
 
         if self.year < 2012:
             self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.year}_Grand_Prix_motorcycle_racing_season"
@@ -513,12 +513,11 @@ class Plotting:
         # plt.show()
 
 
-def main():
+def plot_chart(year=2023):
     # config:
     show_riders_pos = [1, 5]
     show_average_hist_results = True
     MIN_YEAR = 2002  # MotoGP: 2002-current
-    year = 2023
 
     if year < MIN_YEAR:
         raise ValueError("Year must be >= 2002")
@@ -547,4 +546,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    plot_chart()
