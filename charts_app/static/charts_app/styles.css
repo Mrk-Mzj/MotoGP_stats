@@ -1,5 +1,32 @@
-.max-width {
-    width: 70vw;
+body {
+    background-color: rgb(65, 89, 97);
+}
+
+img {
+    width: 75vw;
+}
+
+input {
     display: block;
-    margin: auto
+    margin: auto;
+    width: 10vw;
+    height: 2vw;
+}
+
+#content {
+    width: 75vw;
+    top: 50%;
+    left: 50%;
+    position: absolute;
+    -ms-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+}
+
+#controls {
+    padding: 2vh;
+}
+
+#controls-frame {
+    margin-top: 2vh;
+    background-color: rgb(255, 255, 255);
 }

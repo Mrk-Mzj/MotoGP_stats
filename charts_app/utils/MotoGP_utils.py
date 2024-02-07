@@ -509,7 +509,7 @@ class Plotting:
         plt.yticks(fontsize=9)
         plt.grid(axis="x", alpha=0.3)
 
-        plt.savefig("charts_app/media/charts_app/plot.png")
+        plt.savefig("charts_app/media/charts_app/plot.svg")
         # plt.show()
 
 
