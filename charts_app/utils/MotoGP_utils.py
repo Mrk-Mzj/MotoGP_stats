@@ -513,14 +513,17 @@ class Plotting:
         # plt.show()
 
 
-def plot_chart(year=2023):
+def plot_chart(year=2023, show_average_hist_results = False):
     # config:
     show_riders_pos = [1, 5]
-    show_average_hist_results = True
-    MIN_YEAR = 2002  # MotoGP: 2002-current
+    MIN_YEAR = 2004  # earlier data are corrupted
 
     if year < MIN_YEAR:
-        raise ValueError("Year must be >= 2002")
+        raise ValueError("Year must be >= 2004")
+    
+    # do not plot historic data out of safe range
+    if year < MIN_YEAR+3:
+        show_average_hist_results = False 
 
     # gathering weather data
     weather = GatheringReasultsFrom(year).weather()
