@@ -1,9 +1,16 @@
 body {
     background-color: rgb(65, 89, 97);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 img {
     width: 75vw;
+}
+
+p {
+    color: rgb(185, 33, 33);
+    font-size: 11px;
+    text-align: center;
 }
 
 #checkbox {
@@ -21,7 +28,9 @@ img {
 }
 
 #controls {
-    padding: 2vh;
+    font-size: 15px;
+    padding-top: 2vh;
+    padding-bottom: 0.5vh;
 }
 
 #controls-frame {
@@ -46,6 +55,6 @@ img {
 
 #show-to {
     margin-top: 5px;
-    margin-bottom: 20px;
+    margin-bottom: 17px;
     display: inline;
 }

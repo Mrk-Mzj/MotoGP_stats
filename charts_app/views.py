@@ -6,7 +6,7 @@ from django.conf import settings
 from charts_app.utils.MotoGP_utils import plot_chart
 
 CURRENT_YEAR = datetime.now().year
-MIN_YEAR = 2004  # earlier data are corrupted
+MIN_YEAR = 2004  # earlier data incomplete or corrupted
 
 
 class ParametersForm(forms.Form):
@@ -15,7 +15,9 @@ class ParametersForm(forms.Form):
     years_list = [tuple([x, x]) for x in range(MIN_YEAR, CURRENT_YEAR + 1)]
 
     year_chosen = forms.IntegerField(
-        label="Select year", widget=forms.Select(choices=years_list), initial=CURRENT_YEAR
+        label="Select year",
+        widget=forms.Select(choices=years_list),
+        initial=CURRENT_YEAR,
     )
 
     # checkbox
@@ -45,7 +47,6 @@ class ParametersForm(forms.Form):
     )
 
 
-# Create your views here.
 def index(request):
 
     # show plot (POST)
@@ -55,7 +56,6 @@ def index(request):
 
         # if checkbox is "on", set True, otherwise False
         show_average_hist_results = request.POST.get("hist_results", False)
-
 
         # checking if user really filled the form
         if request.POST.get("places_from"):
@@ -68,26 +68,37 @@ def index(request):
         else:
             places_to = 1
 
-
         # checking if user didn't mix the values
         if places_from <= places_to:
             show_riders_pos = [places_from, places_to]
         else:
             show_riders_pos = [places_to, places_from]
 
-
         if year in range(MIN_YEAR, CURRENT_YEAR + 1):
-            plot_chart(year, show_average_hist_results, show_riders_pos)
 
-            # render and fill form with entered data
-            return render(
-                request,
-                "charts_app/index.html",
-                {
-                    "MEDIA_URL": settings.MEDIA_URL,
-                    "form": ParametersForm(request.POST),
-                },
-            )
+            try:
+                plot_chart(year, show_average_hist_results, show_riders_pos)
+
+                # render and fill form with entered data
+                return render(
+                    request,
+                    "charts_app/index.html",
+                    {
+                        "MEDIA_URL": settings.MEDIA_URL,
+                        "form": ParametersForm(request.POST),
+                    },
+                )
+            except ValueError:
+                # render start page
+                return render(
+                    request,
+                    "charts_app/index.html",
+                    {
+                        "MEDIA_URL": settings.MEDIA_URL,
+                        "form": ParametersForm(),
+                        "error_msg": "error in input data",
+                    },
+                )
 
     # input form data (GET)
     if request.method == "GET":
