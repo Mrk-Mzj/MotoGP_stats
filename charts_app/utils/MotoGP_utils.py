@@ -96,7 +96,7 @@ class Cleaning:
 class GatheringReasultsFrom:
     def __init__(self, year: int):
         self.year = year
-        self.CACHE_PATH = "cache/"
+        self.CACHE_PATH = "charts_app/utils/cache/"
 
         if self.year < 2012:
             self.WIKI_URL = f"https://en.wikipedia.org/wiki/{self.year}_Grand_Prix_motorcycle_racing_season"
@@ -509,18 +509,20 @@ class Plotting:
         plt.yticks(fontsize=9)
         plt.grid(axis="x", alpha=0.3)
 
-        plt.show()
+        plt.savefig("charts_app/media/charts_app/plot.svg")
+        # plt.show()
 
 
-def main():
-    # config:
-    show_riders_pos = [1, 5]
-    show_average_hist_results = True
-    MIN_YEAR = 2002  # MotoGP: 2002-current
-    year = 2023
+def plot_chart(year=2023, show_average_hist_results=False, show_riders_pos=[1, 5]):
+
+    MIN_YEAR = 2004  # earlier data are corrupted
 
     if year < MIN_YEAR:
-        raise ValueError("Year must be >= 2002")
+        raise ValueError("Year must be >= 2004")
+
+    # do not plot historic data out of safe range
+    if year < MIN_YEAR + 3:
+        show_average_hist_results = False
 
     # gathering weather data
     weather = GatheringReasultsFrom(year).weather()
@@ -546,4 +548,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    plot_chart()

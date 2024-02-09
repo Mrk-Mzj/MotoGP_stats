@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>MotoGP stats</title>
+
+    {% load static %}
+    <link href="{% static 'charts_app/styles.css' %}" rel="stylesheet">
+</head>
+
+<body>
+    <div id="content">
+        <img src="{{ MEDIA_URL }}plot.svg">
+        <div id="controls-frame">
+            <div id="controls">
+                <form action="" method="post">
+                    {% csrf_token %}
+                    {{ form }}
+                    <input type="submit" value="Update" id="update">
+                </form>
+                <p>
+                    {{ error_msg }}
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
